@@ -4,9 +4,11 @@ import { useNavigate, Link } from "react-router-dom";
 
 const Signup = () => {
   const [formData, setFormData] = useState({
-    name: "",
+    username: "",
     email: "",
+    role: "",
     password: "",
+    password_confirmation: "",
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,16 +22,21 @@ const Signup = () => {
   const handleSignup = async (e) => {
     e.preventDefault();
     setError("");
+
+    // Basic client-side validation for passwords
+    if (formData.password !== formData.password_confirmation) {
+      return setError("Passwords do not match.");
+    }
+
     setLoading(true);
 
     try {
       const res = await axios.post(
-        "http://localhost:27017/api/register",
+        "http://127.0.0.1:8000/api/register/",
         formData,
       );
 
       if (res.data) {
-        // Optional: Auto-login after signup or redirect to login page
         alert("Account created successfully! Please log in.");
         navigate("/login");
       }
@@ -45,9 +52,8 @@ const Signup = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-12">
       <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 border border-gray-100">
-        {/* Header */}
         <div className="text-center mb-8">
           <h2 className="text-2xl font-bold text-slate-900">
             Create an account
@@ -57,19 +63,18 @@ const Signup = () => {
           </p>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSignup} className="space-y-5">
-          {/* Full Name */}
+        <form onSubmit={handleSignup} className="space-y-4">
+          {/* Username */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Full Name
+              Username
             </label>
             <input
               type="text"
-              name="name"
-              placeholder="John Doe"
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all"
-              value={formData.name}
+              name="username"
+              placeholder="johndoe123"
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all"
+              value={formData.username}
               onChange={handleChange}
               required
             />
@@ -83,12 +88,33 @@ const Signup = () => {
             <input
               type="email"
               name="email"
-              placeholder="Enter your email"
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all"
+              placeholder="name@company.com"
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all"
               value={formData.email}
               onChange={handleChange}
               required
             />
+          </div>
+
+          {/* Role Selection */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Role
+            </label>
+            <select
+              name="role"
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all"
+              value={formData.role}
+              onChange={handleChange}
+              required
+            >
+              <option value="" disabled>
+                Select your role
+              </option>
+              <option value="user">Student</option>
+              <option value="admin">Mentor</option>
+              <option value="editor">Administrator</option>
+            </select>
           </div>
 
           {/* Password */}
@@ -99,8 +125,8 @@ const Signup = () => {
             <input
               type="password"
               name="password"
-              placeholder="Create a password"
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all"
+              placeholder="••••••••"
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all"
               value={formData.password}
               onChange={handleChange}
               required
@@ -108,24 +134,37 @@ const Signup = () => {
             />
           </div>
 
-          {/* Error Message */}
+          {/* Password Confirmation */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Confirm Password
+            </label>
+            <input
+              type="password"
+              name="password_confirmation"
+              placeholder="••••••••"
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all"
+              value={formData.password_confirmation}
+              onChange={handleChange}
+              required
+            />
+          </div>
+
           {error && (
             <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-lg text-center">
               {error}
             </div>
           )}
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg transition-colors disabled:opacity-50"
           >
             {loading ? "Creating account..." : "Sign up"}
           </button>
         </form>
 
-        {/* Footer Link */}
         <div className="mt-6 text-center text-sm text-slate-500">
           Already have an account?{" "}
           <Link
