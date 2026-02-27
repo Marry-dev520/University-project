@@ -54,11 +54,26 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
 ]
+# 1. Allow cookies to be sent cross-origin
+CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://192.168.0.104:3000",
 ]
+
+# 3. Trust the frontend for CSRF tokens
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+]
+# Optional but helpful for local development with sessions:
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+
+
 
 ROOT_URLCONF = 'BACKEND.urls'
 AUTH_USER_MODEL = 'accounts.CustomUser'
@@ -86,14 +101,32 @@ WSGI_APPLICATION = 'BACKEND.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+
+#     }
+# }
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django_mongodb_backend',
+#         'NAME': 'Final-year-project',
+#         'HOST': 'mongodb+srv://bc230405719mum_db_user:NMmA9Aou8UU9X3lE@cluster0.ahdwqqp.mongodb.net/?retryWrites=true&w=majority',
+#     }
+# }
+# DEFAULT_AUTO_FIELD = 'django_mongodb_backend.fields.ObjectIdAutoField'
+# SILENCED_SYSTEM_CHECKS = ["mongodb.E001"]
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-
+        'ENGINE': 'django_mongodb_backend',
+        'NAME': 'Final-testing',
+        'HOST': 'mongodb://localhost:27017/', # Added 'mongodb:' 
     }
 }
-
+DEFAULT_AUTO_FIELD = 'django_mongodb_backend.fields.ObjectIdAutoField'
+SILENCED_SYSTEM_CHECKS = ["mongodb.E001"]
 
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators

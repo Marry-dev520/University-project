@@ -1,76 +1,3 @@
-# from django.shortcuts import render, redirect
-# from django.contrib.auth import login, logout, authenticate
-# from django.contrib.auth.decorators import login_required
-# from .forms import RegisterForm
-# from .models import Question
-# from collections import Counter
-# from .models import CustomUser
-
-# # Register
-# def register_view(request):
-#     form = RegisterForm(request.POST or None)
-#     if form.is_valid():
-#         user = form.save()
-#         login(request, user)
-#         return redirect('login')
-#     return render(request, 'register.html', {'form': form})
-
-# # Login
-
-# def login_view(request):
-#     if request.method == "POST":
-#         email = request.POST.get('email')
-#         password = request.POST.get('password')
-
-#         try:
-#             user_obj = CustomUser.objects.get(email=email)
-#             user = authenticate(request, username=user_obj, password=password)
-
-#             if user is not None:
-#                 login(request, user)
-#                 return redirect('dashboard')
-#         except CustomUser.DoesNotExist:
-#             user = None
-
-#     return render(request, 'login.html')
-
-# # Logout
-# def logout_view(request):
-#     logout(request)
-#     return redirect('login')
-
-# # Role-based Dashboard
-# @login_required
-# def dashboard(request):
-#     return render(request, 'dashboard.html')
-
-
-
-
-
-# @login_required
-# def assessment(request):
-#     questions = Question.objects.all()
-#     return render(request, 'assessment.html', {'questions': questions})
-
-# @login_required
-# def result(request):
-#     if request.method == "POST":
-#         domain_scores = []
-
-#         for key, value in request.POST.items():
-#             if key.startswith("question_"):
-#                 question_id = key.split("_")[1]
-#                 question = Question.objects.get(id=question_id)
-#                 if question.correct_option == value:
-#                     domain_scores.append(question.domain)
-
-#         recommended = Counter(domain_scores).most_common(1)
-#         recommendation = recommended[0][0] if recommended else "No domain"
-
-#         return render(request, 'result.html', {'recommendation': recommendation})
-
-
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
@@ -134,6 +61,7 @@ def assessment_questions_api(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def result_api(request):
+    user = request.user
     answers = request.data.get('answers', {})
     domain_scores = []
 
@@ -148,4 +76,43 @@ def result_api(request):
     recommended = Counter(domain_scores).most_common(1)
     recommendation = recommended[0][0] if recommended else "No domain"
     
-    return Response({"recommendation": recommendation})
+    # NEW: Save the recommendation to the database
+    user.recommended_domain = recommendation
+    user.save()
+    
+    # NEW: Return the updated user object so React can update localStorage
+    return Response({
+        "recommendation": recommendation,
+        "user": {
+            "username": user.username,
+            "email": user.email,
+            "role": getattr(user, 'role', 'student'),
+            "enrolled_courses": getattr(user, 'enrolled_courses', []),
+            "recommended_domain": user.recommended_domain,
+        }
+    }, status=status.HTTP_200_OK)
+
+# 6. Update Skills API
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_skills(request):
+    user = request.user
+    
+    # Extract the array sent from React
+    enrolled_courses = request.data.get('enrolled_courses', [])
+    
+    # Save to the database
+    user.enrolled_courses = enrolled_courses
+    user.save()
+    
+    # Return the updated user object back to React to update local storage
+    return Response({
+        "message": "Skills updated successfully",
+        "user": {
+            "username": user.username,
+            "email": user.email,
+            "role": getattr(user, 'role', 'student'),
+            "enrolled_courses": user.enrolled_courses,
+            "recommended_domain": getattr(user, 'recommended_domain', None),
+        }
+    }, status=status.HTTP_200_OK)

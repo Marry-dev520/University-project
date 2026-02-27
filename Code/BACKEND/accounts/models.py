@@ -8,13 +8,21 @@ class CustomUser(AbstractUser):
         ('admin', 'Administrator'),
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    
+    # --- NEW FIELDS FOR FR2 (SKILLS & RECOMMENDATIONS) ---
+    enrolled_courses = models.JSONField(default=list, blank=True)
+    recommended_domain = models.CharField(max_length=100, blank=True, null=True)
 
 class Question(models.Model):
+    # --- UPDATED TO MATCH DIGISKILLS COURSES ---
     DOMAIN_CHOICES = (
-        ('graphic', 'Graphic Design'),
-        ('writing', 'Content Writing'),
-        ('programming', 'Programming'),
-        ('freelancing', 'Freelancing'),
+        ('Graphic Design', 'Graphic Design'),
+        ('Content Writing', 'Content Writing'),
+        ('Programming', 'Programming'),
+        ('Freelancing', 'Freelancing'),
+        ('E-Commerce', 'E-Commerce'),
+        ('QuickBooks', 'QuickBooks'),
+        ('AutoCAD', 'AutoCAD'),
     )
     domain = models.CharField(max_length=50, choices=DOMAIN_CHOICES)
     question_text = models.CharField(max_length=255)
