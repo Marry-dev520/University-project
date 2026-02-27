@@ -21,16 +21,24 @@ const Login = () => {
         password,
       });
 
-      // FIX 2: Check if data actually exists before setting
-      if (res.data) {
-        localStorage.setItem("token", res.data.access_token);
-        localStorage.setItem("role", res.data.role);
+      // Check if the nested 'user' object exists in the response
+      if (res.data && res.data.user) {
+        // 1. Extract the data exactly as Django sends it via the UserSerializer
+        const userObj = {
+          role: res.data.user.role,
+          username: res.data.user.username,
+          email: res.data.user.email,
+        };
+
+        // 2. Save it to localStorage for the Dashboard to use
+        localStorage.setItem("user", JSON.stringify(userObj));
+
+        // 3. Navigate to the dashboard
         navigate("/dashboard");
       }
     } catch (err) {
-      // FIX 3: Better error handling than 'alert'
       console.error(err);
-      setError(err.response?.data?.message || "Invalid email or password");
+      setError(err.response?.data?.error || "Invalid email or password");
     } finally {
       setLoading(false);
     }

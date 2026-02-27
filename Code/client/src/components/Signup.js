@@ -31,9 +31,12 @@ const Signup = () => {
     setLoading(true);
 
     try {
+      // 1. Strip out password_confirmation so Django doesn't reject the extra field
+      const { password_confirmation, ...dataToSend } = formData;
+
       const res = await axios.post(
         "http://127.0.0.1:8000/api/register/",
-        formData,
+        dataToSend,
       );
 
       if (res.data) {
@@ -41,11 +44,19 @@ const Signup = () => {
         navigate("/login");
       }
     } catch (err) {
-      console.error(err);
-      setError(
-        err.response?.data?.message ||
-          "Something went wrong. Please try again.",
-      );
+      console.error("Backend Error Details:", err.response?.data);
+
+      // 2. Better error handling to catch Django REST Framework specific validation errors
+      if (err.response?.data && typeof err.response.data === "object") {
+        // Grab the first error message from the Django response object
+        const firstErrorKey = Object.keys(err.response.data)[0];
+        const firstErrorMessage = err.response.data[firstErrorKey];
+
+        // Format it nicely (e.g., "username: A user with that username already exists.")
+        setError(`${firstErrorKey}: ${firstErrorMessage}`);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -111,9 +122,10 @@ const Signup = () => {
               <option value="" disabled>
                 Select your role
               </option>
-              <option value="user">Student</option>
-              <option value="admin">Mentor</option>
-              <option value="editor">Administrator</option>
+              {/* 3. Updated values to match Django's ROLE_CHOICES exactly */}
+              <option value="student">Student</option>
+              <option value="mentor">Mentor</option>
+              <option value="admin">Administrator</option>
             </select>
           </div>
 
@@ -150,8 +162,9 @@ const Signup = () => {
             />
           </div>
 
+          {/* Error Display */}
           {error && (
-            <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-lg text-center">
+            <div className="p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-lg text-center capitalize">
               {error}
             </div>
           )}
