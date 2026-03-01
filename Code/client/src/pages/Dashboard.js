@@ -73,13 +73,18 @@ const Dashboard = () => {
   // Save skills to Django Backend
   const saveSkills = async () => {
     try {
+      const token = localStorage.getItem("token");
+
       const res = await axios.patch(
         "http://127.0.0.1:8000/api/update-skills/",
         { enrolled_courses: selectedSkills },
-        { withCredentials: true },
+        {
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        },
       );
 
-      // Update local storage with the fresh user data from Django
       const updatedUser = res.data.user;
       localStorage.setItem("user", JSON.stringify(updatedUser));
       setUser(updatedUser);
@@ -95,10 +100,15 @@ const Dashboard = () => {
   const handleEditProfileSubmit = async (e) => {
     e.preventDefault();
     try {
+      const token = localStorage.getItem("token"); // Changed to use Token
       const res = await axios.patch(
         "http://127.0.0.1:8000/api/update-profile/",
         profileData,
-        { withCredentials: true },
+        {
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        },
       );
       const updatedUser = res.data.user;
       localStorage.setItem("user", JSON.stringify(updatedUser));
@@ -119,13 +129,18 @@ const Dashboard = () => {
     }
 
     try {
+      const token = localStorage.getItem("token"); // Changed to use Token
       await axios.post(
         "http://127.0.0.1:8000/api/change-password/",
         {
           old_password: passwordData.oldPassword,
           new_password: passwordData.newPassword,
         },
-        { withCredentials: true },
+        {
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        },
       );
       setIsChangePasswordOpen(false);
       setPasswordData({
@@ -214,7 +229,6 @@ const Dashboard = () => {
 
       {/* Main Content Area - Conditionals based on Role */}
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* ---------------- STUDENT DASHBOARD ---------------- */}
         {/* ---------------- STUDENT DASHBOARD ---------------- */}
         {String(user.role).toLowerCase() === "student" && (
           <div className="space-y-6">

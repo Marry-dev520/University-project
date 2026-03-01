@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'accounts',
     "rest_framework",
+    "rest_framework.authtoken",
     "corsheaders",
 
 ]
@@ -54,7 +55,13 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 
 ]
-# 1. Allow cookies to be sent cross-origin
+# Tell DRF to use Token Authentication by default
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+}
+#  Allow cookies to be sent cross-origin
 CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOWED_ORIGINS = [
@@ -62,7 +69,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://192.168.0.104:3000",
 ]
 
-# 3. Trust the frontend for CSRF tokens
+#  Trust the frontend for CSRF tokens
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://localhost:3000",
@@ -98,16 +105,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'BACKEND.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
-
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.sqlite3',
-#         'NAME': BASE_DIR / 'db.sqlite3',
-
-#     }
-# }
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'django_mongodb_backend',
