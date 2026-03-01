@@ -7,6 +7,7 @@ import Signup from "./components/Signup";
 import Dashboard from "./pages/Dashboard";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
+import Quiz from "./components/Quiz";
 
 // 2. Setup Axios Globals BEFORE the App component renders
 axios.defaults.withCredentials = true;
@@ -33,6 +34,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          <Route path="/quiz" element={<Quiz />} />
           <Route path="/dashboard" element={<Dashboard />} />
           {/* <Route path="/quiz" element={<Quiz />} /> */}
         </Routes>

@@ -23,6 +23,8 @@ const Login = () => {
 
       // Check if the nested 'user' object exists in the response
       if (res.data && res.data.user) {
+        // ADD THIS LINE TO SAVE THE TOKEN:
+        localStorage.setItem("token", res.data.token);
         // 1. Extract the data exactly as Django sends it via the UserSerializer
         const userObj = {
           role: res.data.user.role,

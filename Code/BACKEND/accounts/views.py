@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth import login, logout, authenticate
 from collections import Counter
-
+from rest_framework.authtoken.models import Token
 from .models import Question, CustomUser
 from .serializers import UserSerializer
 
@@ -33,29 +33,47 @@ def login_api(request):
 
         if user is not None:
             login(request, user)
+            # --- ADD THIS: Get or create the security token ---
+            token, created = Token.objects.get_or_create(user=user)
             return Response({
                 "message": "Login successful",
-                "user": UserSerializer(user).data
+                "token": token.key,  
+                "user": UserSerializer(user).data,
             }, status=status.HTTP_200_OK)
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
     except CustomUser.DoesNotExist:
         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
 # 3. Logout API
-@api_view(['POST']) # Changed to POST for better API practice
+@api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def logout_view(request):
+    try:
+        # Delete the user's token to securely log them out
+        request.user.auth_token.delete()
+    except (AttributeError, Exception):
+        pass # If they don't have a token for some reason, just pass
+    
+    # Clear the session just in case
     logout(request)
+    
     return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
 
 # 4. Assessment List API
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def assessment_questions_api(request):
-    questions = Question.objects.all().values(
+    # 1. Get the raw data from MongoDB and turn it into a list
+    raw_questions = list(Question.objects.all().values(
         'id', 'domain', 'question_text', 'option1', 'option2', 'option3', 'option4'
-    )
-    return Response(list(questions))
+    ))
+    
+    # 2. THE FIX: Loop through the questions and convert the ObjectId to a string
+    for q in raw_questions:
+        q['id'] = str(q['id'])
+        
+    # 3. Send the clean JSON data back to React
+    return Response(raw_questions)
 
 # 5. Result/Recommendation API
 @api_view(['POST'])
