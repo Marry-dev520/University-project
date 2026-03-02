@@ -134,3 +134,31 @@ def update_skills(request):
             "recommended_domain": getattr(user, 'recommended_domain', None),
         }
     }, status=status.HTTP_200_OK)
+
+# 7. Add Question API view for mentors
+@api_view(['POST']) # <-- FIXED INDENTATION HERE
+@permission_classes([IsAuthenticated])
+def add_question_api(request):
+    try:
+        # Extract the data sent from your React frontend
+        data = request.data
+        
+        # Security/Validation Check: Ensure the user is actually a mentor
+        if hasattr(request.user, 'role') and str(request.user.role).lower() != 'mentor':
+            return Response({'error': 'Only mentors can add questions.'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Create the new Question in the database
+        new_question = Question.objects.create(
+            domain=data.get('domain'),
+            question_text=data.get('question_text'),
+            option1=data.get('option1'),
+            option2=data.get('option2'),
+            option3=data.get('option3'),
+            option4=data.get('option4'),
+            correct_option=data.get('correct_option')
+        )
+        
+        return Response({'message': 'Question added successfully!'}, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
