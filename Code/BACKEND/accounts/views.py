@@ -7,7 +7,11 @@ from collections import Counter
 from rest_framework.authtoken.models import Token
 from .models import Question, CustomUser
 from .serializers import UserSerializer
-
+import random
+import os
+from dotenv import load_dotenv
+import google.generativeai as genai
+from .models import Question, CustomUser
 # 1. Register API
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -59,54 +63,78 @@ def logout_view(request):
     
     return Response({"message": "Logged out successfully"}, status=status.HTTP_200_OK)
 
-# 4. Assessment List API
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def assessment_questions_api(request):
-    # 1. Get the raw data from MongoDB and turn it into a list
-    raw_questions = list(Question.objects.all().values(
+    # Get all questions
+    all_questions = list(Question.objects.all().values(
         'id', 'domain', 'question_text', 'option1', 'option2', 'option3', 'option4'
+        # Notice we DO NOT send 'correct_option' to the frontend anymore for security!
     ))
-    
-    # 2. THE FIX: Loop through the questions and convert the ObjectId to a string
-    for q in raw_questions:
-        q['id'] = str(q['id'])
-        
-    # 3. Send the clean JSON data back to React
-    return Response(raw_questions)
 
-# 5. Result/Recommendation API
+    # FIX: Convert MongoDB ObjectIds to strings so JSON can serialize them
+    for q in all_questions:
+        q['id'] = str(q['id'])
+        # If your database uses '_id' instead of 'id', uncomment the line below:
+        # q['_id'] = str(q.get('_id', q.get('id')))
+
+    # Shuffle and pick a maximum of 10 questions per domain
+    domain_groups = {}
+    for q in all_questions:
+        domain_groups.setdefault(q['domain'], []).append(q)
+
+    final_questions = []
+    for domain, questions in domain_groups.items():
+        # Randomize the order and pick up to 10
+        random.shuffle(questions)
+        final_questions.extend(questions[:10])
+
+    return Response(final_questions, status=status.HTTP_200_OK)
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def result_api(request):
     user = request.user
-    answers = request.data.get('answers', {})
-    domain_scores = []
+    submitted_answers = request.data.get('answers', {})
+    domain = request.data.get('domain', '')
 
-    for q_id, selected_option in answers.items():
+    if not submitted_answers:
+        return Response({"error": "No answers provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+    score = 0
+    total_questions = len(submitted_answers)
+
+    # Check answers against the database
+    for question_id, selected_option in submitted_answers.items():
         try:
-            question = Question.objects.get(id=q_id)
+            # Query the database for the correct answer
+            question = Question.objects.get(id=question_id)
             if question.correct_option == selected_option:
-                domain_scores.append(question.domain)
+                score += 1
         except Question.DoesNotExist:
             continue
 
-    recommended = Counter(domain_scores).most_common(1)
-    recommendation = recommended[0][0] if recommended else "No domain"
-    
-    # NEW: Save the recommendation to the database
+    # Determine recommendation based on score (You can customize this logic)
+    recommendation = domain
+    if score < (total_questions / 2):
+        recommendation = "Beginner Fundamentals" # Example fallback if score is low
+
+    # Save to the user profile
     user.recommended_domain = recommendation
+    user.latest_score = score   # <--- ADD THIS LINE
     user.save()
-    
-    # NEW: Return the updated user object so React can update localStorage
+
+    # Return the new score data back to React
     return Response({
+        "score": score,
+        "total": total_questions,
         "recommendation": recommendation,
         "user": {
+            "id": str(user.id),  # <--- FIX: Added str() here!
             "username": user.username,
-            "email": user.email,
-            "role": getattr(user, 'role', 'student'),
-            "enrolled_courses": getattr(user, 'enrolled_courses', []),
-            "recommended_domain": user.recommended_domain,
+            "enrolled_courses": user.enrolled_courses,
+            "recommended_domain": user.recommended_domain
         }
     }, status=status.HTTP_200_OK)
 
@@ -233,4 +261,162 @@ def update_profile_api(request):
             "email": user.email,
             # If you are returning enrolled_courses in login/result, you can add it here too
         }
+    }, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def student_progress_api(request):
+    # Fetch only users who are students
+    students = CustomUser.objects.filter(role='student') 
+    
+    data = []
+    for student in students:
+        # If they haven't enrolled in courses, just show "No Domain"
+        domain_display = student.enrolled_courses[0] if student.enrolled_courses else "No Domain"
+        
+        data.append({
+            # Wrap student.id in str() to fix the JSON serialization error
+            "id": str(student.id), 
+            "username": student.username,
+            "domain": domain_display,
+            "result": student.recommended_domain or "No Result Yet",
+            "status": "Completed" if student.recommended_domain else "Pending",
+            "feedback": student.mentor_feedback or "",
+            "score": student.latest_score
+        })
+
+    return Response(data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def submit_feedback_api(request):
+    # The frontend is sending the user's ID as 'result_id'
+    student_id = request.data.get('result_id') 
+    feedback_text = request.data.get('feedback')
+
+    if not student_id or not feedback_text:
+        return Response({"error": "Missing data"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        # 1. Find the student
+        student = CustomUser.objects.get(id=student_id)
+        
+        # 2. Update their feedback and save
+        student.mentor_feedback = feedback_text
+        student.save()
+
+        return Response({"message": "Feedback saved successfully!"}, status=status.HTTP_200_OK)
+    
+    except CustomUser.DoesNotExist:
+        return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # ///
+        # Load the environment variables from your .env file
+load_dotenv()
+
+# Configure the Gemini API using the key from .env
+api_key = os.getenv("GEMINI_API_KEY")
+if api_key:
+    genai.configure(api_key=api_key)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def chatbot_api(request):
+    user_message = request.data.get('message')
+
+    if not user_message:
+        return Response({"error": "Message is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if not api_key:
+        return Response({"error": "API key not configured on server"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # The System Prompt tells the AI who it is and what it is allowed to talk about.
+    system_instruction = """
+    You are an expert career counselor and freelancing mentor for DigiSkills students. 
+    Your goal is to provide helpful, encouraging, and accurate advice.
+    Only answer questions related to: graphic design, web development, freelancing platforms (Upwork, Fiverr), 
+    content writing, resume building, and career growth. 
+    If the user asks about unrelated topics (like cooking, sports, or politics), 
+    politely decline and guide them back to career topics.
+    
+    User's message: 
+    """
+
+    try:
+        # We use gemini-1.5-flash as it is fast and great for text chat
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # Combine our secret instructions with the user's actual question
+        full_prompt = system_instruction + user_message
+        
+        # Ask Gemini to generate the response
+        response = model.generate_content(full_prompt)
+        
+        return Response({"reply": response.text}, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        print(f"Chatbot Error: {e}") # This will print the exact error to your terminal if it fails
+        return Response({"error": "Failed to connect to AI. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+from .models import Project
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_project_api(request):
+    """Allows a student to add a project to their portfolio."""
+    user = request.user
+    
+    # Optional: Only allow students to add projects
+    if user.role != 'student':
+        return Response({"error": "Only students can create portfolios."}, status=status.HTTP_403_FORBIDDEN)
+
+    title = request.data.get('title')
+    domain = request.data.get('domain')
+    description = request.data.get('description')
+    project_url = request.data.get('project_url', '')
+
+    if not title or not domain or not description:
+        return Response({"error": "Title, domain, and description are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Create the project
+    project = Project.objects.create(
+        user=user,
+        title=title,
+        domain=domain,
+        description=description,
+        project_url=project_url
+    )
+
+    return Response({"message": "Project added to portfolio!"}, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+def user_portfolio_api(request, username):
+    """Fetches all projects for a specific username to build their portfolio page."""
+    try:
+        target_user = CustomUser.objects.get(username=username, role='student')
+    except CustomUser.DoesNotExist:
+        return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    projects = Project.objects.filter(user=target_user).order_by('-created_at')
+    
+    # Format the data for React
+    project_list = []
+    for p in projects:
+        project_list.append({
+            "id": str(p.id), # Added str() just in case of MongoDB ObjectIds!
+            "title": p.title,
+            "domain": p.domain,
+            "description": p.description,
+            "project_url": p.project_url,
+            "created_at": p.created_at.strftime("%b %d, %Y")
+        })
+
+    # Return the user's profile info AND their projects
+    return Response({
+        "student_name": f"{target_user.first_name} {target_user.last_name}".strip() or target_user.username,
+        "email": target_user.email,
+        "recommended_domain": target_user.recommended_domain,
+        "projects": project_list
     }, status=status.HTTP_200_OK)

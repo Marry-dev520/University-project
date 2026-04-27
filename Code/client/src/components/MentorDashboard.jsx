@@ -3,6 +3,7 @@ import axios from "axios";
 import { availableSkills } from "../constants";
 
 const MentorDashboard = () => {
+  // Add Question State
   const [isAddQuestionOpen, setIsAddQuestionOpen] = useState(false);
   const [questionData, setQuestionData] = useState({
     domain: availableSkills[0],
@@ -14,6 +15,13 @@ const MentorDashboard = () => {
     correct_option: "",
   });
 
+  // Review Students State
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [studentsProgress, setStudentsProgress] = useState([]);
+  const [loadingProgress, setLoadingProgress] = useState(false);
+  const [feedbackText, setFeedbackText] = useState({});
+
+  // --- Handlers for Add Question ---
   const handleAddQuestionSubmit = async (e) => {
     e.preventDefault();
     const options = [
@@ -54,9 +62,74 @@ const MentorDashboard = () => {
     }
   };
 
+  // --- Handlers for Review Students ---
+  const fetchStudentProgress = async () => {
+    setIsReviewOpen(true);
+    setLoadingProgress(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(
+        "http://127.0.0.1:8000/api/student-progress/",
+        {
+          headers: { Authorization: `Token ${token}` },
+        },
+      );
+      setStudentsProgress(res.data);
+    } catch (err) {
+      console.error("Failed to fetch student progress:", err);
+      // Fallback dummy data for UI testing if API isn't ready
+      setStudentsProgress([
+        {
+          id: 1,
+          username: "john_doe",
+          domain: "Graphic Design",
+          result: "Logo Design",
+          status: "Completed",
+          score: 8, // Dummy score
+        },
+        {
+          id: 2,
+          username: "jane_smith",
+          domain: "Programming",
+          result: "Frontend Web Dev",
+          status: "Completed",
+          score: 2, // Dummy score
+        },
+      ]);
+    } finally {
+      setLoadingProgress(false);
+    }
+  };
+
+  const handleFeedbackChange = (resultId, text) => {
+    setFeedbackText({ ...feedbackText, [resultId]: text });
+  };
+
+  const submitFeedback = async (resultId) => {
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(
+        "http://127.0.0.1:8000/api/submit-feedback/",
+        {
+          result_id: resultId,
+          feedback: feedbackText[resultId],
+        },
+        { headers: { Authorization: `Token ${token}` } },
+      );
+      alert("Feedback submitted successfully!");
+
+      // Clear the text box for that specific student
+      setFeedbackText({ ...feedbackText, [resultId]: "" });
+    } catch (err) {
+      console.error("Failed to submit feedback", err);
+      alert("Failed to submit feedback. Backend might not be ready.");
+    }
+  };
+
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Add Question Card */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 border-l-4 border-l-indigo-500">
           <h2 className="text-lg font-bold text-slate-900 mb-2">
             Question Bank
@@ -71,14 +144,24 @@ const MentorDashboard = () => {
             Add Question
           </button>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+
+        {/* Review Students Card */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-emerald-100 border-l-4 border-l-emerald-500">
           <h2 className="text-lg font-bold text-slate-900 mb-2">
             Review Students
           </h2>
-          <p className="text-slate-600">
+          <p className="text-slate-600 mb-4">
             Check recent test scores and provide feedback.
           </p>
+          <button
+            onClick={fetchStudentProgress}
+            className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-emerald-700 transition-colors"
+          >
+            Review Progress
+          </button>
         </div>
+
+        {/* My Domains Card */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h2 className="text-lg font-bold text-slate-900 mb-2">My Domains</h2>
           <p className="text-slate-600">
@@ -87,6 +170,7 @@ const MentorDashboard = () => {
         </div>
       </div>
 
+      {/* ----------- Add Question Modal ----------- */}
       {isAddQuestionOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -207,6 +291,103 @@ const MentorDashboard = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ----------- Review Students Modal ----------- */}
+      {isReviewOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">
+                Student Progress & Feedback
+              </h2>
+              <button
+                onClick={() => setIsReviewOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+
+            {loadingProgress ? (
+              <div className="text-center py-10 text-slate-500">
+                Loading students...
+              </div>
+            ) : studentsProgress.length === 0 ? (
+              <div className="text-center py-10 text-slate-500">
+                No student data found.
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {studentsProgress.map((student) => (
+                  <div
+                    key={student.id}
+                    className="border border-slate-200 rounded-lg p-5 bg-slate-50"
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-semibold text-slate-900 mb-2">
+                          @{student.username}
+                        </h3>
+                        <p className="text-sm text-slate-600">
+                          Domain:{" "}
+                          <span className="font-medium text-slate-900">
+                            {student.domain}
+                          </span>
+                        </p>
+
+                        {/* --- NEW SCORE FIELD ADDED HERE --- */}
+                        <p className="text-sm text-slate-600">
+                          Score:{" "}
+                          <span className="font-medium text-indigo-600">
+                            {student.score !== null &&
+                            student.score !== undefined
+                              ? `${student.score} / 10`
+                              : "Not taken yet"}
+                          </span>
+                        </p>
+
+                        <p className="text-sm text-slate-600">
+                          Recommendation:{" "}
+                          <span className="font-medium text-emerald-600">
+                            {student.result}
+                          </span>
+                        </p>
+                      </div>
+                      <span className="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-emerald-200">
+                        {student.status}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 border-t border-slate-200 pt-4">
+                      <label className="block text-sm font-medium text-slate-700 mb-2">
+                        Leave Feedback
+                      </label>
+                      <textarea
+                        rows="2"
+                        className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none mb-3"
+                        placeholder="Write constructive feedback for this student..."
+                        value={feedbackText[student.id] || ""}
+                        onChange={(e) =>
+                          handleFeedbackChange(student.id, e.target.value)
+                        }
+                      ></textarea>
+                      <div className="flex justify-end">
+                        <button
+                          onClick={() => submitFeedback(student.id)}
+                          disabled={!feedbackText[student.id]}
+                          className="bg-emerald-600 disabled:bg-emerald-300 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors"
+                        >
+                          Submit Feedback
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
