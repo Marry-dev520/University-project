@@ -7,6 +7,7 @@ const Quiz = () => {
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [selectedDomain, setSelectedDomain] = useState("");
   const [answers, setAnswers] = useState({});
+  const [feedback, setFeedback] = useState({}); // Stores if the selected answer is correct
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -25,11 +26,9 @@ const Quiz = () => {
           return;
         }
 
-        // Get enrolled courses from the user object
         const courses = storedUser.enrolled_courses || [];
         setEnrolledCourses(courses);
 
-        // If they have enrolled courses, set the first one as the active tab
         if (courses.length > 0) {
           setSelectedDomain(courses[0]);
         } else {
@@ -40,7 +39,7 @@ const Quiz = () => {
           return;
         }
 
-        // Fetch Questions
+        // Fetch Questions (Assumes this returns the 'correct_option' field from MongoDB)
         const res = await axios.get("http://127.0.0.1:8000/api/assessment/", {
           headers: { Authorization: `Token ${token}` },
         });
@@ -56,21 +55,41 @@ const Quiz = () => {
     fetchInitialData();
   }, [navigate]);
 
-  // Filter questions strictly by the selected enrolled domain
   const filteredQuestions = questions.filter(
     (q) => q.domain === selectedDomain,
   );
 
+  // UPDATED: Check answer instantly on the frontend
   const handleOptionChange = (questionId, selectedValue) => {
+    // 1. Save the selected answer
     setAnswers({ ...answers, [questionId]: selectedValue });
+
+    // 2. Find the current question to check the correct answer
+    const currentQuestion = questions.find(
+      (q) => q.id === questionId || q._id === questionId,
+    );
+
+    // 3. Compare selected value with the correct_option from the database payload
+    if (currentQuestion && currentQuestion.correct_option) {
+      const isCorrect = selectedValue === currentQuestion.correct_option;
+
+      setFeedback((prev) => ({
+        ...prev,
+        [questionId]: {
+          isCorrect: isCorrect,
+          correctOption: currentQuestion.correct_option,
+        },
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
 
-    // Ensure validation only applies to the current visible tab
-    const answeredCount = filteredQuestions.filter((q) => answers[q.id]).length;
+    const answeredCount = filteredQuestions.filter(
+      (q) => answers[q.id || q._id],
+    ).length;
     if (answeredCount < filteredQuestions.length) {
       setError(
         `Please answer all questions for ${selectedDomain} before submitting!`,
@@ -105,7 +124,6 @@ const Quiz = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-md p-8">
-        {/* Dynamic Domain Selection Tabs based on User's Enrolled Courses */}
         {enrolledCourses.length > 0 && !result && (
           <div className="flex space-x-2 mb-8 overflow-x-auto pb-2">
             {enrolledCourses.map((domain) => (
@@ -113,7 +131,8 @@ const Quiz = () => {
                 key={domain}
                 onClick={() => {
                   setSelectedDomain(domain);
-                  setAnswers({}); // Reset answers when switching tabs
+                  setAnswers({});
+                  setFeedback({}); // Reset feedback on tab change
                 }}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
                   selectedDomain === domain
@@ -172,42 +191,81 @@ const Quiz = () => {
                 No questions found for {selectedDomain}.
               </div>
             ) : (
-              filteredQuestions.map((q, index) => (
-                <div
-                  key={q.id}
-                  className="mb-8 bg-slate-50 p-6 rounded-xl border border-slate-200"
-                >
-                  <h3 className="text-lg font-semibold text-slate-900 mb-4">
-                    {index + 1}. {q.question_text}
-                  </h3>
-                  <div className="space-y-3">
-                    {[q.option1, q.option2, q.option3, q.option4].map(
-                      (option, idx) => (
-                        <label
-                          key={idx}
-                          className={`flex items-center space-x-3 cursor-pointer p-4 border rounded-lg transition-all ${
-                            answers[q.id] === option
-                              ? "bg-indigo-50 border-indigo-500 shadow-sm"
-                              : "bg-white border-gray-200 hover:bg-gray-50 hover:border-indigo-300"
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name={`question_${q.id}`}
-                            value={option}
-                            checked={answers[q.id] === option}
-                            onChange={() => handleOptionChange(q.id, option)}
-                            className="w-5 h-5 text-indigo-600 focus:ring-indigo-500 border-gray-300"
-                          />
-                          <span className="text-slate-700 font-medium">
-                            {option}
-                          </span>
-                        </label>
-                      ),
-                    )}
+              filteredQuestions.map((q, index) => {
+                // Handle both Django model IDs and MongoDB ObjectIDs
+                const currentId = q.id || q._id;
+                const questionFeedback = feedback[currentId];
+                const isAnswered = !!answers[currentId];
+
+                return (
+                  <div
+                    key={currentId}
+                    className="mb-8 bg-slate-50 p-6 rounded-xl border border-slate-200"
+                  >
+                    <h3 className="text-lg font-semibold text-slate-900 mb-4">
+                      {index + 1}. {q.question_text}
+                    </h3>
+                    <div className="space-y-3">
+                      {[q.option1, q.option2, q.option3, q.option4].map(
+                        (option, idx) => {
+                          const isSelected = answers[currentId] === option;
+
+                          // Determine dynamic styling based on feedback
+                          let styleClasses =
+                            "bg-white border-gray-200 hover:bg-gray-50 hover:border-indigo-300";
+
+                          if (isSelected) {
+                            if (questionFeedback?.isCorrect) {
+                              styleClasses =
+                                "bg-emerald-50 border-emerald-500 shadow-sm"; // Correct answer
+                            } else {
+                              styleClasses =
+                                "bg-red-50 border-red-500 shadow-sm"; // Wrong answer
+                            }
+                          } else if (
+                            questionFeedback &&
+                            option === questionFeedback.correctOption
+                          ) {
+                            // Highlight the correct answer if they got it wrong
+                            styleClasses =
+                              "bg-emerald-50 border-emerald-500 border-dashed opacity-75";
+                          }
+
+                          return (
+                            <label
+                              key={idx}
+                              className={`flex items-center space-x-3 cursor-pointer p-4 border rounded-lg transition-all ${
+                                isAnswered ? "pointer-events-none" : "" // Disable changing answer after selection
+                              } ${styleClasses}`}
+                            >
+                              <input
+                                type="radio"
+                                name={`question_${currentId}`}
+                                value={option}
+                                checked={isSelected}
+                                onChange={() =>
+                                  handleOptionChange(currentId, option)
+                                }
+                                disabled={isAnswered}
+                                className={`w-5 h-5 focus:ring-indigo-500 border-gray-300 ${
+                                  questionFeedback?.isCorrect && isSelected
+                                    ? "text-emerald-600"
+                                    : questionFeedback && isSelected
+                                      ? "text-red-600"
+                                      : "text-indigo-600"
+                                }`}
+                              />
+                              <span className="text-slate-700 font-medium">
+                                {option}
+                              </span>
+                            </label>
+                          );
+                        },
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
 
             {filteredQuestions.length > 0 && (
