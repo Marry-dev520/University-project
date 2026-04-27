@@ -162,3 +162,75 @@ def add_question_api(request):
         
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+# change password API
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password_api(request):
+    user = request.user
+    old_password = request.data.get('old_password')
+    new_password = request.data.get('new_password')
+
+    # 1. Validate that both fields are provided
+    if not old_password or not new_password:
+        return Response(
+            {"error": "Both old and new passwords are required."}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 2. Check if the old password is correct
+    if not user.check_password(old_password):
+        return Response(
+            {"error": "Incorrect old password."}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+    # 3. Set the new password and save
+    user.set_password(new_password)
+    user.save()
+
+    return Response(
+        {"message": "Password updated successfully."}, 
+        status=status.HTTP_200_OK
+    )
+    # Make sure this starts perfectly aligned to the left margin!
+@api_view(['PUT', 'POST'])
+@permission_classes([IsAuthenticated])
+def update_profile_api(request):
+    user = request.user
+
+    # 1. Get the new data from the request, fallback to existing data if not provided
+    first_name = request.data.get('first_name', user.first_name)
+    last_name = request.data.get('last_name', user.last_name)
+    email = request.data.get('email', user.email)
+
+    # 2. Check if the user is trying to change their email to one that already exists
+    if email and email != user.email:
+        if User.objects.filter(email=email).exists():
+            return Response(
+                {"error": "A user with this email already exists."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    # 3. Update the user object
+    user.first_name = first_name
+    user.last_name = last_name
+    user.email = email
+    
+    # If you have custom fields on your user model (like phone_number), add them here:
+    # user.phone_number = request.data.get('phone_number', user.phone_number)
+
+    user.save()
+
+    # 4. Return success message and the updated user data for the frontend
+    return Response({
+        "message": "Profile updated successfully.",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "email": user.email,
+            # If you are returning enrolled_courses in login/result, you can add it here too
+        }
+    }, status=status.HTTP_200_OK)

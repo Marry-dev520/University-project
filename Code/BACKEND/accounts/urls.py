@@ -11,4 +11,6 @@ urlpatterns = [
     path('api/assessment/', views.assessment_questions_api, name='assessment'),
     path('api/result/', views.result_api, name='result'),
     path('api/add-question/', views.add_question_api, name='add_question'),
+    path('api/change-password/', views.change_password_api, name='change_password'),
+     path('api/update-profile/', views.update_profile_api, name='update_profile'),
 ]
