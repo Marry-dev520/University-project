@@ -44,6 +44,7 @@ const StudentDashboard = ({ user, setUser }) => {
 
   return (
     <div className="space-y-6">
+      {/* --- Enrolled Skills Card --- */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 border-t-4 border-t-indigo-500">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold text-slate-900">
@@ -119,10 +120,13 @@ const StudentDashboard = ({ user, setUser }) => {
         )}
       </div>
 
+      {/* --- Action Cards Grid --- */}
       {user.enrolled_courses &&
         user.enrolled_courses.length > 0 &&
         !isEditingSkills && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 transition-all duration-500 ease-in-out opacity-100">
+          // CHANGED: grid-cols-1 md:grid-cols-2 lg:grid-cols-3 to fit the new card perfectly
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-all duration-500 ease-in-out opacity-100">
+            {/* 1. Skill Assessment Card */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 mb-2">
@@ -144,6 +148,7 @@ const StudentDashboard = ({ user, setUser }) => {
               </button>
             </div>
 
+            {/* 2. Recommendation Card */}
             <div
               className={`bg-white p-6 rounded-xl shadow-sm border border-t-4 flex flex-col justify-center ${
                 user?.recommended_domain &&
@@ -194,6 +199,26 @@ const StudentDashboard = ({ user, setUser }) => {
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* 3. NEW: Portfolio Card */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between border-t-4 border-t-purple-500">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 mb-2">
+                  My Portfolio
+                </h2>
+                <p className="text-slate-600 mb-6 text-sm">
+                  Build and share your professional portfolio based on your
+                  completed tasks to attract potential clients.
+                </p>
+              </div>
+              <button
+                // Navigates to the unique portfolio URL for this user
+                onClick={() => navigate(`/portfolio/${user?.username}`)}
+                className="bg-purple-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors w-max shadow-sm"
+              >
+                Manage Portfolio
+              </button>
             </div>
           </div>
         )}

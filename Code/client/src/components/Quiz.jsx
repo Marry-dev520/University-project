@@ -7,8 +7,7 @@ const Quiz = () => {
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [selectedDomain, setSelectedDomain] = useState("");
   const [answers, setAnswers] = useState({});
-  const [feedback, setFeedback] = useState({}); // Stores if the selected answer is correct
-  const [result, setResult] = useState(null);
+  const [resultData, setResultData] = useState(null); // Stores score, total, and recommendation
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -39,7 +38,7 @@ const Quiz = () => {
           return;
         }
 
-        // Fetch Questions (Assumes this returns the 'correct_option' field from MongoDB)
+        // Fetch Questions
         const res = await axios.get("http://127.0.0.1:8000/api/assessment/", {
           headers: { Authorization: `Token ${token}` },
         });
@@ -55,32 +54,13 @@ const Quiz = () => {
     fetchInitialData();
   }, [navigate]);
 
-  const filteredQuestions = questions.filter(
-    (q) => q.domain === selectedDomain,
-  );
+  // Frontend safeguard: Ensure we only show a maximum of 10 questions
+  const filteredQuestions = questions
+    .filter((q) => q.domain === selectedDomain)
+    .slice(0, 10);
 
-  // UPDATED: Check answer instantly on the frontend
   const handleOptionChange = (questionId, selectedValue) => {
-    // 1. Save the selected answer
     setAnswers({ ...answers, [questionId]: selectedValue });
-
-    // 2. Find the current question to check the correct answer
-    const currentQuestion = questions.find(
-      (q) => q.id === questionId || q._id === questionId,
-    );
-
-    // 3. Compare selected value with the correct_option from the database payload
-    if (currentQuestion && currentQuestion.correct_option) {
-      const isCorrect = selectedValue === currentQuestion.correct_option;
-
-      setFeedback((prev) => ({
-        ...prev,
-        [questionId]: {
-          isCorrect: isCorrect,
-          correctOption: currentQuestion.correct_option,
-        },
-      }));
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -90,27 +70,36 @@ const Quiz = () => {
     const answeredCount = filteredQuestions.filter(
       (q) => answers[q.id || q._id],
     ).length;
+
     if (answeredCount < filteredQuestions.length) {
       setError(
-        `Please answer all questions for ${selectedDomain} before submitting!`,
+        `Please answer all ${filteredQuestions.length} questions for ${selectedDomain} before submitting!`,
       );
       return;
     }
 
     try {
       const token = localStorage.getItem("token");
+      // Send the answers to the DB to be checked
       const res = await axios.post(
         "http://127.0.0.1:8000/api/result/",
         { answers: answers, domain: selectedDomain },
         { headers: { Authorization: `Token ${token}` } },
       );
 
+      // Update user in local storage if returned
       if (res.data.user) {
         localStorage.setItem("user", JSON.stringify(res.data.user));
       }
-      setResult(res.data.recommendation);
+
+      // Save the structured result (score, total, recommendation)
+      setResultData({
+        score: res.data.score,
+        total: res.data.total,
+        recommendation: res.data.recommendation,
+      });
     } catch (err) {
-      setError("Error calculating results.");
+      setError("Error calculating results. Please try again.");
     }
   };
 
@@ -124,7 +113,7 @@ const Quiz = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
       <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-md p-8">
-        {enrolledCourses.length > 0 && !result && (
+        {enrolledCourses.length > 0 && !resultData && (
           <div className="flex space-x-2 mb-8 overflow-x-auto pb-2">
             {enrolledCourses.map((domain) => (
               <button
@@ -132,7 +121,6 @@ const Quiz = () => {
                 onClick={() => {
                   setSelectedDomain(domain);
                   setAnswers({});
-                  setFeedback({}); // Reset feedback on tab change
                 }}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
                   selectedDomain === domain
@@ -146,17 +134,30 @@ const Quiz = () => {
           </div>
         )}
 
-        {result ? (
+        {resultData ? (
           <div className="text-center py-12">
             <h2 className="text-3xl font-bold text-slate-900 mb-4">
               Assessment Complete!
             </h2>
-            <p className="text-lg text-slate-600 mb-6">
+
+            {/* Display Score out of 10 */}
+            <div className="mb-8">
+              <p className="text-lg text-slate-600 mb-2">Your Score:</p>
+              <div className="inline-block px-8 py-4 bg-indigo-50 text-indigo-700 text-5xl font-black rounded-xl border-2 border-indigo-200 shadow-sm">
+                {resultData.score}{" "}
+                <span className="text-3xl text-indigo-400">
+                  / {resultData.total}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-lg text-slate-600 mb-4">
               Your recommended freelancing domain is:
             </p>
-            <div className="inline-block px-8 py-4 bg-emerald-100 text-emerald-800 text-3xl font-extrabold rounded-lg border-2 border-emerald-300 shadow-sm mb-8">
-              {result}
+            <div className="inline-block px-8 py-4 bg-emerald-100 text-emerald-800 text-2xl font-extrabold rounded-lg border-2 border-emerald-300 shadow-sm mb-8">
+              {resultData.recommendation}
             </div>
+
             <div>
               <button
                 onClick={() => navigate("/dashboard")}
@@ -192,10 +193,7 @@ const Quiz = () => {
               </div>
             ) : (
               filteredQuestions.map((q, index) => {
-                // Handle both Django model IDs and MongoDB ObjectIDs
                 const currentId = q.id || q._id;
-                const questionFeedback = feedback[currentId];
-                const isAnswered = !!answers[currentId];
 
                 return (
                   <div
@@ -210,33 +208,14 @@ const Quiz = () => {
                         (option, idx) => {
                           const isSelected = answers[currentId] === option;
 
-                          // Determine dynamic styling based on feedback
-                          let styleClasses =
-                            "bg-white border-gray-200 hover:bg-gray-50 hover:border-indigo-300";
-
-                          if (isSelected) {
-                            if (questionFeedback?.isCorrect) {
-                              styleClasses =
-                                "bg-emerald-50 border-emerald-500 shadow-sm"; // Correct answer
-                            } else {
-                              styleClasses =
-                                "bg-red-50 border-red-500 shadow-sm"; // Wrong answer
-                            }
-                          } else if (
-                            questionFeedback &&
-                            option === questionFeedback.correctOption
-                          ) {
-                            // Highlight the correct answer if they got it wrong
-                            styleClasses =
-                              "bg-emerald-50 border-emerald-500 border-dashed opacity-75";
-                          }
-
                           return (
                             <label
                               key={idx}
                               className={`flex items-center space-x-3 cursor-pointer p-4 border rounded-lg transition-all ${
-                                isAnswered ? "pointer-events-none" : "" // Disable changing answer after selection
-                              } ${styleClasses}`}
+                                isSelected
+                                  ? "bg-indigo-50 border-indigo-500 shadow-sm"
+                                  : "bg-white border-gray-200 hover:bg-gray-50 hover:border-indigo-300"
+                              }`}
                             >
                               <input
                                 type="radio"
@@ -246,14 +225,7 @@ const Quiz = () => {
                                 onChange={() =>
                                   handleOptionChange(currentId, option)
                                 }
-                                disabled={isAnswered}
-                                className={`w-5 h-5 focus:ring-indigo-500 border-gray-300 ${
-                                  questionFeedback?.isCorrect && isSelected
-                                    ? "text-emerald-600"
-                                    : questionFeedback && isSelected
-                                      ? "text-red-600"
-                                      : "text-indigo-600"
-                                }`}
+                                className="w-5 h-5 text-indigo-600 focus:ring-indigo-500 border-gray-300"
                               />
                               <span className="text-slate-700 font-medium">
                                 {option}
@@ -273,7 +245,7 @@ const Quiz = () => {
                 type="submit"
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl transition-colors text-lg shadow-md mt-4"
               >
-                Submit {selectedDomain} Assessment
+                Submit Assessment
               </button>
             )}
           </form>
