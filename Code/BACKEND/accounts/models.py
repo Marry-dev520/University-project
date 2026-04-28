@@ -52,3 +52,11 @@ class Project(models.Model):
 
     def __str__(self):
         return f"{self.title} by {self.user.username}"
+
+class SkillDomain(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    created_by = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name

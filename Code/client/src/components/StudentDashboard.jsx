@@ -3,10 +3,16 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { availableSkills } from "../constants";
 
+// IMPORT YOUR NEW CHATBOT COMPONENT HERE
+import Chatbot from "./Chatbot";
+
 const StudentDashboard = ({ user, setUser }) => {
   const [selectedSkills, setSelectedSkills] = useState([]);
   const [isEditingSkills, setIsEditingSkills] = useState(false);
   const navigate = useNavigate();
+
+  // State variable to track if the chat window is open
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   useEffect(() => {
     if (user?.enrolled_courses) {
@@ -43,7 +49,7 @@ const StudentDashboard = ({ user, setUser }) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative min-h-screen pb-20">
       {/* --- Enrolled Skills Card --- */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 border-t-4 border-t-indigo-500">
         <div className="flex justify-between items-center mb-4">
@@ -120,12 +126,11 @@ const StudentDashboard = ({ user, setUser }) => {
         )}
       </div>
 
-      {/* --- Action Cards Grid --- */}
+      {/* --- Action Cards Grid (Now exactly 3 columns) --- */}
       {user.enrolled_courses &&
         user.enrolled_courses.length > 0 &&
         !isEditingSkills && (
-          // CHANGED: grid-cols-1 md:grid-cols-2 lg:grid-cols-3 to fit the new card perfectly
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-all duration-500 ease-in-out opacity-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-500 ease-in-out opacity-100">
             {/* 1. Skill Assessment Card */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
               <div>
@@ -168,7 +173,7 @@ const StudentDashboard = ({ user, setUser }) => {
                         Great job! Based on your assessment, your ideal domain
                         matches your skills:
                       </p>
-                      <p className="text-emerald-700 font-extrabold text-2xl mt-1">
+                      <p className="text-emerald-700 font-extrabold text-2xl mt-1 truncate">
                         {user.recommended_domain}
                       </p>
                     </>
@@ -176,17 +181,11 @@ const StudentDashboard = ({ user, setUser }) => {
                     <>
                       <p className="text-slate-600 text-sm mb-1">
                         Based on your test results, you might be better suited
-                        for a different path. We suggest exploring:
+                        for a different path:
                       </p>
-                      <p className="text-amber-600 font-extrabold text-2xl mt-1">
+                      <p className="text-amber-600 font-extrabold text-2xl mt-1 truncate">
                         {user.recommended_domain}
                       </p>
-                      <div className="mt-3 p-2.5 bg-amber-50 border border-amber-100 rounded-lg">
-                        <p className="text-xs text-amber-800 font-medium flex items-center gap-1.5">
-                          Consider updating your enrolled skills above to start
-                          tasks in this new domain!
-                        </p>
-                      </div>
                     </>
                   )}
                 </div>
@@ -201,7 +200,7 @@ const StudentDashboard = ({ user, setUser }) => {
               )}
             </div>
 
-            {/* 3. NEW: Portfolio Card */}
+            {/* 3. Portfolio Card */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between border-t-4 border-t-purple-500">
               <div>
                 <h2 className="text-lg font-bold text-slate-900 mb-2">
@@ -213,7 +212,6 @@ const StudentDashboard = ({ user, setUser }) => {
                 </p>
               </div>
               <button
-                // Navigates to the unique portfolio URL for this user
                 onClick={() => navigate(`/portfolio/${user?.username}`)}
                 className="bg-purple-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors w-max shadow-sm"
               >
@@ -222,6 +220,23 @@ const StudentDashboard = ({ user, setUser }) => {
             </div>
           </div>
         )}
+
+      {/* --- FLOATING AI CHATBOT BUTTON --- */}
+      {/* This button only shows when the chat window is closed */}
+      {!isChatOpen && (
+        <button
+          onClick={() => setIsChatOpen(true)}
+          className="fixed bottom-8 right-8 bg-sky-600 text-white px-5 py-3 rounded-full shadow-lg hover:bg-sky-700 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 z-40 flex items-center gap-2 font-bold group border-2 border-white"
+        >
+          <span className="text-xl group-hover:rotate-12 transition-transform">
+            ✦
+          </span>
+          <span>Ask AI Mentor</span>
+        </button>
+      )}
+
+      {/* --- RENDER THE SEPARATED CHATBOT COMPONENT HERE --- */}
+      <Chatbot isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </div>
   );
 };

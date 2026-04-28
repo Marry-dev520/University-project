@@ -5,13 +5,12 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth import login, logout, authenticate
 from collections import Counter
 from rest_framework.authtoken.models import Token
-from .models import Question, CustomUser
+from .models import CustomUser, Question, SkillDomain, Project
 from .serializers import UserSerializer
 import random
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
-from .models import Question, CustomUser
 # 1. Register API
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -311,14 +310,13 @@ def submit_feedback_api(request):
     except CustomUser.DoesNotExist:
         return Response({"error": "Student not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        # ///
-        # Load the environment variables from your .env file
+ # /// CHATBOT API using Gemini 1.5 Flash ///
 load_dotenv()
-
-# Configure the Gemini API using the key from .env
 api_key = os.getenv("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
+else:
+    print("🚨 ERROR: GEMINI_API_KEY is missing! Check your .env file.")
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -331,7 +329,6 @@ def chatbot_api(request):
     if not api_key:
         return Response({"error": "API key not configured on server"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    # The System Prompt tells the AI who it is and what it is allowed to talk about.
     system_instruction = """
     You are an expert career counselor and freelancing mentor for DigiSkills students. 
     Your goal is to provide helpful, encouraging, and accurate advice.
@@ -344,22 +341,42 @@ def chatbot_api(request):
     """
 
     try:
-        # We use gemini-1.5-flash as it is fast and great for text chat
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # 1. Ask Google what models your specific API key has access to
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
         
-        # Combine our secret instructions with the user's actual question
+        # Print the list to your terminal for debugging!
+        print(f"Models available to your API key: {available_models}")
+        
+        if not available_models:
+             print("🚨 ERROR: Your API key does not have access to any text models!")
+             return Response({"error": "AI models unavailable."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # 2. Automatically pick the best available model (Prefers 'flash', then whatever is first)
+        selected_model_name = available_models[0] # Default fallback
+        for name in available_models:
+            if 'flash' in name:
+                selected_model_name = name
+                break
+
+        # Remove 'models/' prefix so the library doesn't crash
+        clean_model_name = selected_model_name.replace('models/', '')
+        print(f"✅ Successfully loaded model: {clean_model_name}")
+
+        # 3. Generate the actual chat response
+        model = genai.GenerativeModel(clean_model_name)
         full_prompt = system_instruction + user_message
         
-        # Ask Gemini to generate the response
         response = model.generate_content(full_prompt)
         
         return Response({"reply": response.text}, status=status.HTTP_200_OK)
         
     except Exception as e:
-        print(f"Chatbot Error: {e}") # This will print the exact error to your terminal if it fails
+        print(f"Chatbot Error: {e}") 
         return Response({"error": "Failed to connect to AI. Please try again later."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-from .models import Project
+# from .models import Project
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -420,3 +437,42 @@ def user_portfolio_api(request, username):
         "recommended_domain": target_user.recommended_domain,
         "projects": project_list
     }, status=status.HTTP_200_OK)
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def domain_api(request):
+    if request.method == 'GET':
+        # Grab all domains from the database
+        domains = list(SkillDomain.objects.values_list('name', flat=True))
+        
+        # If the database is completely empty, populate it with your defaults
+        if not domains:
+            default_domains = [
+                "Graphic Design", "Content Writing", "Programming", 
+                "Freelancing", "E-Commerce", "QuickBooks", "AutoCAD"
+            ]
+            for d in default_domains:
+                SkillDomain.objects.get_or_create(name=d)
+            domains = default_domains
+            
+        return Response(domains, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        # Only allow mentors to add new domains
+        if request.user.role != 'mentor':
+            return Response({"error": "Only mentors can add domains."}, status=status.HTTP_403_FORBIDDEN)
+        
+        domain_name = request.data.get('name')
+        if not domain_name:
+            return Response({"error": "Domain name is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Save it to the database
+        domain, created = SkillDomain.objects.get_or_create(
+            name=domain_name, 
+            defaults={'created_by': request.user}
+        )
+        
+        if created:
+            return Response({"message": "Domain added successfully!", "domain": domain.name}, status=status.HTTP_201_CREATED)
+        else:
+            return Response({"error": "This domain already exists."}, status=status.HTTP_400_BAD_REQUEST)
