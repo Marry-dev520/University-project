@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import axios from "axios";
-import { availableSkills } from "../constants";
 
 const MentorDashboard = () => {
-  // Add Question State
+  // --- States ---
+  const [localDomains, setLocalDomains] = useState([]);
+  const [newDomain, setNewDomain] = useState("");
   const [isAddQuestionOpen, setIsAddQuestionOpen] = useState(false);
   const [questionData, setQuestionData] = useState({
-    domain: availableSkills[0],
+    domain: "",
     question_text: "",
     option1: "",
     option2: "",
@@ -15,11 +16,55 @@ const MentorDashboard = () => {
     correct_option: "",
   });
 
-  // Review Students State
   const [isReviewOpen, setIsReviewOpen] = useState(false);
   const [studentsProgress, setStudentsProgress] = useState([]);
   const [loadingProgress, setLoadingProgress] = useState(false);
   const [feedbackText, setFeedbackText] = useState({});
+
+  // --- Fetch Domains from Database on Load ---
+  useEffect(() => {
+    const fetchDomains = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await axios.get("http://127.0.0.1:8000/api/domains/", {
+          headers: { Authorization: `Token ${token}` },
+        });
+        setLocalDomains(res.data);
+        if (res.data.length > 0) {
+          setQuestionData((prev) => ({ ...prev, domain: res.data[0] }));
+        }
+      } catch (err) {
+        console.error("Failed to fetch domains", err);
+      }
+    };
+    fetchDomains();
+  }, []);
+
+  // --- Add Domain to Database ---
+  const handleAddDomain = async (e) => {
+    e.preventDefault();
+    if (!newDomain.trim()) return;
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(
+        "http://127.0.0.1:8000/api/domains/",
+        { name: newDomain },
+        { headers: { Authorization: `Token ${token}` } },
+      );
+
+      // Add the new domain to our list so the UI updates instantly
+      setLocalDomains([...localDomains, res.data.domain]);
+      setNewDomain("");
+      alert(res.data.message);
+    } catch (err) {
+      if (err.response && err.response.data.error) {
+        alert(err.response.data.error);
+      } else {
+        alert("Failed to add domain to database.");
+      }
+    }
+  };
 
   // --- Handlers for Add Question ---
   const handleAddQuestionSubmit = async (e) => {
@@ -48,7 +93,7 @@ const MentorDashboard = () => {
       alert("Question added successfully!");
       setIsAddQuestionOpen(false);
       setQuestionData({
-        domain: availableSkills[0],
+        domain: localDomains[0] || "",
         question_text: "",
         option1: "",
         option2: "",
@@ -77,7 +122,7 @@ const MentorDashboard = () => {
       setStudentsProgress(res.data);
     } catch (err) {
       console.error("Failed to fetch student progress:", err);
-      // Fallback dummy data for UI testing if API isn't ready
+      // Fallback
       setStudentsProgress([
         {
           id: 1,
@@ -85,15 +130,7 @@ const MentorDashboard = () => {
           domain: "Graphic Design",
           result: "Logo Design",
           status: "Completed",
-          score: 8, // Dummy score
-        },
-        {
-          id: 2,
-          username: "jane_smith",
-          domain: "Programming",
-          result: "Frontend Web Dev",
-          status: "Completed",
-          score: 2, // Dummy score
+          score: 8,
         },
       ]);
     } finally {
@@ -110,15 +147,10 @@ const MentorDashboard = () => {
       const token = localStorage.getItem("token");
       await axios.post(
         "http://127.0.0.1:8000/api/submit-feedback/",
-        {
-          result_id: resultId,
-          feedback: feedbackText[resultId],
-        },
+        { result_id: resultId, feedback: feedbackText[resultId] },
         { headers: { Authorization: `Token ${token}` } },
       );
       alert("Feedback submitted successfully!");
-
-      // Clear the text box for that specific student
       setFeedbackText({ ...feedbackText, [resultId]: "" });
     } catch (err) {
       console.error("Failed to submit feedback", err);
@@ -130,43 +162,78 @@ const MentorDashboard = () => {
     <>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Add Question Card */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 border-l-4 border-l-indigo-500">
-          <h2 className="text-lg font-bold text-slate-900 mb-2">
-            Question Bank
-          </h2>
-          <p className="text-slate-600 mb-4">
-            Add new questions to the database for students.
-          </p>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 border-t-4 border-t-indigo-500 flex flex-col justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 mb-2">
+              Question Bank
+            </h2>
+            <p className="text-slate-600 mb-6 text-sm">
+              Add new questions to the database for student assessments.
+            </p>
+          </div>
           <button
             onClick={() => setIsAddQuestionOpen(true)}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition-colors"
+            className="bg-indigo-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors w-max"
           >
             Add Question
           </button>
         </div>
 
         {/* Review Students Card */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-emerald-100 border-l-4 border-l-emerald-500">
-          <h2 className="text-lg font-bold text-slate-900 mb-2">
-            Review Students
-          </h2>
-          <p className="text-slate-600 mb-4">
-            Check recent test scores and provide feedback.
-          </p>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-emerald-100 border-t-4 border-t-emerald-500 flex flex-col justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 mb-2">
+              Review Students
+            </h2>
+            <p className="text-slate-600 mb-6 text-sm">
+              Check recent test scores and provide feedback to students.
+            </p>
+          </div>
           <button
             onClick={fetchStudentProgress}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-emerald-700 transition-colors"
+            className="bg-emerald-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-700 transition-colors w-max"
           >
             Review Progress
           </button>
         </div>
 
         {/* My Domains Card */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-slate-900 mb-2">My Domains</h2>
-          <p className="text-slate-600">
-            Manage Graphic Design and Freelancing topics.
-          </p>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-amber-100 border-t-4 border-t-amber-500 flex flex-col justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 mb-2">
+              Manage Domains
+            </h2>
+            <p className="text-slate-600 mb-4 text-sm">
+              Add new skill categories to the database for students.
+            </p>
+
+            <form onSubmit={handleAddDomain} className="flex gap-2 mb-4">
+              <input
+                type="text"
+                value={newDomain}
+                onChange={(e) => setNewDomain(e.target.value)}
+                placeholder="New domain name..."
+                className="flex-1 border border-gray-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+              <button
+                type="submit"
+                className="bg-amber-500 text-white px-3 py-2 rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors"
+              >
+                Save
+              </button>
+            </form>
+
+            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1 custom-scrollbar">
+              {localDomains.map((domain) => (
+                <span
+                  key={domain}
+                  className="bg-amber-50 text-amber-800 text-xs px-2.5 py-1 rounded border border-amber-200"
+                >
+                  {domain}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -190,7 +257,7 @@ const MentorDashboard = () => {
                   className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   required
                 >
-                  {availableSkills.map((skill) => (
+                  {localDomains.map((skill) => (
                     <option key={skill} value={skill}>
                       {skill}
                     </option>
@@ -337,8 +404,6 @@ const MentorDashboard = () => {
                             {student.domain}
                           </span>
                         </p>
-
-                        {/* --- NEW SCORE FIELD ADDED HERE --- */}
                         <p className="text-sm text-slate-600">
                           Score:{" "}
                           <span className="font-medium text-indigo-600">
@@ -348,7 +413,6 @@ const MentorDashboard = () => {
                               : "Not taken yet"}
                           </span>
                         </p>
-
                         <p className="text-sm text-slate-600">
                           Recommendation:{" "}
                           <span className="font-medium text-emerald-600">
@@ -360,7 +424,6 @@ const MentorDashboard = () => {
                         {student.status}
                       </span>
                     </div>
-
                     <div className="mt-4 border-t border-slate-200 pt-4">
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Leave Feedback

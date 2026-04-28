@@ -16,4 +16,5 @@ urlpatterns = [
     path('api/chat/', views.chatbot_api, name='chatbot'),
     path('api/add-project/', views.add_project_api, name='add_project'),
     path('api/portfolio/<str:username>/', views.user_portfolio_api, name='user_portfolio'),
+    path('api/domains/', views.domain_api, name='domains'),
 ]
