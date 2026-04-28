@@ -476,3 +476,42 @@ def domain_api(request):
             return Response({"message": "Domain added successfully!", "domain": domain.name}, status=status.HTTP_201_CREATED)
         else:
             return Response({"error": "This domain already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_dashboard_api(request):
+    # Security Check: Only allow Admins
+    if request.user.role != 'admin':
+        return Response({"error": "Unauthorized access. Admins only."}, status=status.HTTP_403_FORBIDDEN)
+
+    # 1. Get all users
+    users = CustomUser.objects.all().order_by('-date_joined')
+    user_list = []
+    for u in users:
+        user_list.append({
+            "id": str(u.id),
+            "username": u.username,
+            "email": u.email,
+            "role": u.role.capitalize(),
+            "domain": u.recommended_domain or "None",
+            "feedback": u.mentor_feedback or "",
+            "date_joined": u.date_joined.strftime("%b %d, %Y")
+        })
+
+    # 2. Get all projects
+    projects = Project.objects.all().order_by('-created_at')
+    project_list = []
+    for p in projects:
+        project_list.append({
+            "id": str(p.id),
+            "title": p.title,
+            "domain": p.domain,
+            "student": p.user.username,
+            "url": p.project_url,
+            "created_at": p.created_at.strftime("%b %d, %Y")
+        })
+
+    return Response({
+        "users": user_list,
+        "projects": project_list
+    }, status=status.HTTP_200_OK)
