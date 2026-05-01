@@ -11,14 +11,20 @@ const StudentDashboard = ({ user, setUser }) => {
   const [isEditingSkills, setIsEditingSkills] = useState(false);
   const navigate = useNavigate();
 
-  // State variable to track if the chat window is open
   const [isChatOpen, setIsChatOpen] = useState(false);
 
+  // States for AI Task Recommendation
+  const [aiTask, setAiTask] = useState(null);
+  const [loadingTask, setLoadingTask] = useState(false);
+
+  // Strict check to see if the user already has saved skills
+  const hasSkills = user?.enrolled_courses && user.enrolled_courses.length > 0;
+
   useEffect(() => {
-    if (user?.enrolled_courses) {
+    if (hasSkills) {
       setSelectedSkills(user.enrolled_courses);
     }
-  }, [user]);
+  }, [user, hasSkills]); // <-- Added hasSkills here
 
   const handleSkillToggle = (skill) => {
     if (selectedSkills.includes(skill)) {
@@ -38,9 +44,10 @@ const StudentDashboard = ({ user, setUser }) => {
       );
 
       const updatedUser = res.data.user;
+      // Update local storage so it persists on refresh
       localStorage.setItem("user", JSON.stringify(updatedUser));
       setUser(updatedUser);
-      setIsEditingSkills(false);
+      setIsEditingSkills(false); // Close the edit menu
       alert("Skills saved successfully!");
     } catch (err) {
       console.error("Error saving skills", err);
@@ -48,6 +55,23 @@ const StudentDashboard = ({ user, setUser }) => {
     }
   };
 
+  // Function to fetch AI Task
+  const generateAiTask = async () => {
+    setLoadingTask(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get("http://127.0.0.1:8000/api/ai-task/", {
+        headers: { Authorization: `Token ${token}` },
+      });
+      setAiTask(res.data);
+    } catch (err) {
+      console.error("Failed to fetch AI task", err);
+      alert("Failed to connect to the AI Mentor. Try again later.");
+    } finally {
+      setLoadingTask(false);
+    }
+  };
+  console.log("CURRENT USER DATA IN REACT:", user);
   return (
     <div className="space-y-6 relative min-h-screen pb-20">
       {/* --- Enrolled Skills Card --- */}
@@ -56,7 +80,9 @@ const StudentDashboard = ({ user, setUser }) => {
           <h2 className="text-xl font-bold text-slate-900">
             My Enrolled DigiSkills
           </h2>
-          {!isEditingSkills && user.enrolled_courses?.length > 0 && (
+
+          {/* ONLY show Edit button if they already have skills and aren't currently editing */}
+          {hasSkills && !isEditingSkills && (
             <button
               onClick={() => setIsEditingSkills(true)}
               className="text-indigo-600 text-sm font-semibold hover:underline"
@@ -66,9 +92,8 @@ const StudentDashboard = ({ user, setUser }) => {
           )}
         </div>
 
-        {isEditingSkills ||
-        !user.enrolled_courses ||
-        user.enrolled_courses.length === 0 ? (
+        {/* Logic: Show selection menu if editing OR if they have no skills yet */}
+        {isEditingSkills || !hasSkills ? (
           <div>
             <p className="text-slate-500 mb-4 text-sm">
               Select the courses you are enrolled in:
@@ -92,11 +117,11 @@ const StudentDashboard = ({ user, setUser }) => {
               ))}
             </div>
             <div className="flex justify-end">
-              {isEditingSkills && user.enrolled_courses?.length > 0 && (
+              {isEditingSkills && hasSkills && (
                 <button
                   onClick={() => {
                     setIsEditingSkills(false);
-                    setSelectedSkills(user.enrolled_courses);
+                    setSelectedSkills(user.enrolled_courses); // Reset changes
                   }}
                   className="mr-3 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
                 >
@@ -113,6 +138,7 @@ const StudentDashboard = ({ user, setUser }) => {
             </div>
           </div>
         ) : (
+          /* READ-ONLY MODE: Shows automatically if they have skills saved! */
           <div className="flex flex-wrap gap-2">
             {user.enrolled_courses.map((course) => (
               <span
@@ -126,103 +152,143 @@ const StudentDashboard = ({ user, setUser }) => {
         )}
       </div>
 
-      {/* --- Action Cards Grid (Now exactly 3 columns) --- */}
-      {user.enrolled_courses &&
-        user.enrolled_courses.length > 0 &&
-        !isEditingSkills && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 transition-all duration-500 ease-in-out opacity-100">
-            {/* 1. Skill Assessment Card */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
+      {/* --- Action Cards Grid --- */}
+      {/* ONLY show these cards if the user has selected their skills */}
+      {hasSkills && !isEditingSkills && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 transition-all duration-500 ease-in-out opacity-100">
+          {/* 1. Skill Assessment Card */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 mb-2">
+                Skill Assessment
+              </h2>
+              <p className="text-slate-600 mb-6 text-sm">
+                {user?.recommended_domain
+                  ? "You have already completed the assessment. Want to try again?"
+                  : "Take the test to get your recommended freelancing domain based on your skills."}
+              </p>
+            </div>
+            <button
+              onClick={() => navigate("/quiz")}
+              className="bg-slate-900 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors w-max"
+            >
+              {user?.recommended_domain
+                ? "Retake Assessment"
+                : "Start Assessment"}
+            </button>
+          </div>
+
+          {/* 2. Recommendation Card */}
+          <div
+            className={`bg-white p-6 rounded-xl shadow-sm border border-t-4 flex flex-col justify-center ${
+              user?.recommended_domain &&
+              !user?.enrolled_courses?.includes(user.recommended_domain)
+                ? "border-amber-100 border-t-amber-500"
+                : "border-emerald-100 border-t-emerald-500"
+            }`}
+          >
+            <h2 className="text-lg font-bold text-slate-900 mb-2">
+              My Recommendation
+            </h2>
+            {user?.recommended_domain ? (
               <div>
-                <h2 className="text-lg font-bold text-slate-900 mb-2">
-                  Skill Assessment
-                </h2>
-                <p className="text-slate-600 mb-6 text-sm">
-                  {user?.recommended_domain
-                    ? "You have already completed the assessment. Want to try again?"
-                    : "Take the test to get your recommended freelancing domain based on your skills."}
+                {user?.enrolled_courses?.includes(user.recommended_domain) ? (
+                  <>
+                    <p className="text-slate-500 text-sm mb-1">
+                      Great job! Based on your assessment, your ideal domain
+                      matches your skills:
+                    </p>
+                    <p className="text-emerald-700 font-extrabold text-2xl mt-1 truncate">
+                      {user.recommended_domain}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-slate-600 text-sm mb-1">
+                      Based on your test results, you might be better suited for
+                      a different path:
+                    </p>
+                    <p className="text-amber-600 font-extrabold text-2xl mt-1 truncate">
+                      {user.recommended_domain}
+                    </p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 mt-2">
+                <p className="text-slate-500 italic text-sm">
+                  No recommendation yet.
+                  <br />
+                  Please take the assessment to unlock.
                 </p>
               </div>
-              <button
-                onClick={() => navigate("/quiz")}
-                className="bg-slate-900 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors w-max"
-              >
-                {user?.recommended_domain
-                  ? "Retake Assessment"
-                  : "Start Assessment"}
-              </button>
-            </div>
+            )}
+          </div>
 
-            {/* 2. Recommendation Card */}
-            <div
-              className={`bg-white p-6 rounded-xl shadow-sm border border-t-4 flex flex-col justify-center ${
-                user?.recommended_domain &&
-                !user?.enrolled_courses?.includes(user.recommended_domain)
-                  ? "border-amber-100 border-t-amber-500"
-                  : "border-emerald-100 border-t-emerald-500"
-              }`}
-            >
+          {/* 3. Portfolio Card */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between border-t-4 border-t-purple-500">
+            <div>
               <h2 className="text-lg font-bold text-slate-900 mb-2">
-                My Recommendation
+                My Portfolio
               </h2>
-              {user?.recommended_domain ? (
-                <div>
-                  {user?.enrolled_courses?.includes(user.recommended_domain) ? (
-                    <>
-                      <p className="text-slate-500 text-sm mb-1">
-                        Great job! Based on your assessment, your ideal domain
-                        matches your skills:
-                      </p>
-                      <p className="text-emerald-700 font-extrabold text-2xl mt-1 truncate">
-                        {user.recommended_domain}
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-slate-600 text-sm mb-1">
-                        Based on your test results, you might be better suited
-                        for a different path:
-                      </p>
-                      <p className="text-amber-600 font-extrabold text-2xl mt-1 truncate">
-                        {user.recommended_domain}
-                      </p>
-                    </>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 mt-2">
-                  <p className="text-slate-500 italic text-sm">
-                    No recommendation yet.
-                    <br />
-                    Please take the assessment to unlock.
+              <p className="text-slate-600 mb-6 text-sm">
+                Build and share your professional portfolio based on your
+                completed tasks to attract potential clients.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate(`/portfolio/${user?.username}`)}
+              className="bg-purple-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors w-max shadow-sm"
+            >
+              Manage Portfolio
+            </button>
+          </div>
+
+          {/* 4. AI Project Recommendation Card */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between border-t-4 border-t-sky-500">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
+                AI Task Suggestion <span className="text-sky-500">✦</span>
+              </h2>
+
+              {aiTask ? (
+                <div className="mb-4">
+                  <h3 className="text-sm font-bold text-slate-800 mb-1">
+                    {aiTask.title}
+                  </h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    {aiTask.description}
                   </p>
                 </div>
+              ) : (
+                <p className="text-slate-600 mb-6 text-sm">
+                  Not sure what to build next? Ask the AI Mentor to generate a
+                  custom project idea based on your current domain.
+                </p>
               )}
             </div>
 
-            {/* 3. Portfolio Card */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between border-t-4 border-t-purple-500">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900 mb-2">
-                  My Portfolio
-                </h2>
-                <p className="text-slate-600 mb-6 text-sm">
-                  Build and share your professional portfolio based on your
-                  completed tasks to attract potential clients.
-                </p>
-              </div>
-              <button
-                onClick={() => navigate(`/portfolio/${user?.username}`)}
-                className="bg-purple-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors w-max shadow-sm"
-              >
-                Manage Portfolio
-              </button>
-            </div>
+            <button
+              onClick={generateAiTask}
+              disabled={loadingTask}
+              className="bg-sky-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-sky-700 transition-colors w-max shadow-sm disabled:bg-sky-300 flex items-center gap-2"
+            >
+              {loadingTask ? (
+                <>
+                  <span className="animate-spin text-lg leading-none">⟳</span>{" "}
+                  Generating...
+                </>
+              ) : aiTask ? (
+                "Generate Another Idea"
+              ) : (
+                "Get AI Suggestion"
+              )}
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
       {/* --- FLOATING AI CHATBOT BUTTON --- */}
-      {/* This button only shows when the chat window is closed */}
       {!isChatOpen && (
         <button
           onClick={() => setIsChatOpen(true)}

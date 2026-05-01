@@ -5,6 +5,8 @@ const AdminDashboard = () => {
   const [data, setData] = useState({ users: [], projects: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Set default tab to "users" since it's the first tab now
   const [activeTab, setActiveTab] = useState("users");
 
   useEffect(() => {
@@ -30,7 +32,32 @@ const AdminDashboard = () => {
     fetchAdminData();
   }, []);
 
-  // Filter users to only show those who have received mentor feedback
+  // --- Derived Analytics Logic ---
+
+  // 1. Filter out only students
+  const students = data.users.filter((u) => u.role === "Student");
+
+  // 2. Calculate Assessment Completion (Students who have a recommended domain)
+  const studentsWithAssessments = students.filter(
+    (u) => u.domain && u.domain !== "None",
+  );
+  const completionRate =
+    students.length > 0
+      ? Math.round((studentsWithAssessments.length / students.length) * 100)
+      : 0;
+
+  // 3. Calculate Domain Popularity Distribution
+  const domainDistribution = studentsWithAssessments.reduce((acc, user) => {
+    acc[user.domain] = (acc[user.domain] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Sort domains by highest count
+  const sortedDomains = Object.entries(domainDistribution).sort(
+    (a, b) => b[1] - a[1],
+  );
+
+  // 4. Mentor Feedback Filtering
   const reportedFeedback = data.users.filter(
     (user) => user.feedback && user.feedback.trim() !== "",
   );
@@ -49,7 +76,7 @@ const AdminDashboard = () => {
   return (
     <div className="space-y-6">
       {/* Top Stat Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-emerald-100 border-t-4 border-t-emerald-500">
           <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">
             Total Users
@@ -74,29 +101,43 @@ const AdminDashboard = () => {
             {reportedFeedback.length}
           </p>
         </div>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-sky-100 border-t-4 border-t-sky-500">
+          <h2 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-1">
+            Assessments Done
+          </h2>
+          <p className="text-3xl font-black text-slate-900">
+            {completionRate}%
+          </p>
+        </div>
       </div>
 
       {/* Admin Panel Main Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {/* Navigation Tabs */}
-        <div className="flex border-b border-gray-200 bg-slate-50">
+        {/* Navigation Tabs - MOVED ANALYTICS TO THE END */}
+        <div className="flex border-b border-gray-200 bg-slate-50 overflow-x-auto custom-scrollbar">
           <button
             onClick={() => setActiveTab("users")}
-            className={`px-6 py-4 text-sm font-bold transition-colors ${activeTab === "users" ? "bg-white text-emerald-600 border-b-2 border-emerald-600" : "text-slate-500 hover:text-slate-800"}`}
+            className={`px-6 py-4 text-sm font-bold transition-colors whitespace-nowrap ${activeTab === "users" ? "bg-white text-emerald-600 border-b-2 border-emerald-600" : "text-slate-500 hover:text-slate-800"}`}
           >
             Manage Users
           </button>
           <button
             onClick={() => setActiveTab("projects")}
-            className={`px-6 py-4 text-sm font-bold transition-colors ${activeTab === "projects" ? "bg-white text-indigo-600 border-b-2 border-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
+            className={`px-6 py-4 text-sm font-bold transition-colors whitespace-nowrap ${activeTab === "projects" ? "bg-white text-indigo-600 border-b-2 border-indigo-600" : "text-slate-500 hover:text-slate-800"}`}
           >
             Platform Projects
           </button>
           <button
             onClick={() => setActiveTab("reports")}
-            className={`px-6 py-4 text-sm font-bold transition-colors ${activeTab === "reports" ? "bg-white text-amber-600 border-b-2 border-amber-600" : "text-slate-500 hover:text-slate-800"}`}
+            className={`px-6 py-4 text-sm font-bold transition-colors whitespace-nowrap ${activeTab === "reports" ? "bg-white text-amber-600 border-b-2 border-amber-600" : "text-slate-500 hover:text-slate-800"}`}
           >
             Feedback Reports
+          </button>
+          <button
+            onClick={() => setActiveTab("analytics")}
+            className={`px-6 py-4 text-sm font-bold transition-colors whitespace-nowrap ${activeTab === "analytics" ? "bg-white text-sky-600 border-b-2 border-sky-600" : "text-slate-500 hover:text-slate-800"}`}
+          >
+            Analytics & Progress
           </button>
         </div>
 
@@ -220,6 +261,110 @@ const AdminDashboard = () => {
                   </div>
                 ))
               )}
+            </div>
+          )}
+
+          {/* ANALYTICS TAB */}
+          {activeTab === "analytics" && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Skill Distribution Chart */}
+              <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
+                <h3 className="text-lg font-bold text-slate-900 mb-4">
+                  Skill Domain Distribution
+                </h3>
+                <p className="text-sm text-slate-500 mb-6">
+                  Current breakdown of recommended paths for students based on
+                  their quiz assessments.
+                </p>
+
+                <div className="space-y-4">
+                  {sortedDomains.length === 0 ? (
+                    <p className="text-slate-400 italic text-sm">
+                      No assessment data available yet.
+                    </p>
+                  ) : (
+                    sortedDomains.map(([domain, count]) => {
+                      const percentage = Math.round(
+                        (count / studentsWithAssessments.length) * 100,
+                      );
+                      return (
+                        <div key={domain}>
+                          <div className="flex justify-between text-sm mb-1">
+                            <span className="font-semibold text-slate-700">
+                              {domain}
+                            </span>
+                            <span className="text-slate-500">
+                              {count} students ({percentage}%)
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2.5">
+                            <div
+                              className="bg-sky-500 h-2.5 rounded-full transition-all duration-1000 ease-out"
+                              style={{ width: `${percentage}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Progress Insights Text */}
+              <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 flex flex-col justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-4">
+                    Student Progress Insights
+                  </h3>
+                  <ul className="space-y-4">
+                    <li className="flex items-start gap-3">
+                      <span className="text-emerald-500 text-xl leading-none">
+                        &bull;
+                      </span>
+                      <p className="text-sm text-slate-600">
+                        <strong className="text-slate-800">
+                          Engagement Rate:
+                        </strong>{" "}
+                        {completionRate}% of registered students have
+                        successfully completed their initial skill assessment.
+                      </p>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="text-indigo-500 text-xl leading-none">
+                        &bull;
+                      </span>
+                      <p className="text-sm text-slate-600">
+                        <strong className="text-slate-800">
+                          Trending Skill:
+                        </strong>{" "}
+                        {sortedDomains.length > 0
+                          ? `${sortedDomains[0][0]} is currently the most popular domain among incoming talent.`
+                          : "Not enough data yet."}
+                      </p>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="text-amber-500 text-xl leading-none">
+                        &bull;
+                      </span>
+                      <p className="text-sm text-slate-600">
+                        <strong className="text-slate-800">
+                          Mentor Interactions:
+                        </strong>{" "}
+                        {reportedFeedback.length} pieces of constructive
+                        feedback have been delivered to guide student
+                        portfolios.
+                      </p>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="mt-6 p-4 bg-sky-100 rounded-lg border border-sky-200">
+                  <p className="text-xs text-sky-800 font-medium">
+                    💡 Tip: Encourage mentors to target domains with lower
+                    student counts to ensure balanced platform growth.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>
