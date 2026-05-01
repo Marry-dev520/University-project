@@ -17,4 +17,7 @@ urlpatterns = [
     path('api/add-project/', views.add_project_api, name='add_project'),
     path('api/portfolio/<str:username>/', views.user_portfolio_api, name='user_portfolio'),
     path('api/domains/', views.domain_api, name='domains'),
+    path('api/admin/dashboard/', views.admin_dashboard_api, name='admin_dashboard'),
+    path('api/mentor/generate-portfolio/', views.generate_portfolio_by_mentor, name='generate_portfolio'),
+    path('api/ai-task/', views.generate_ai_task_api, name='ai_task'),
 ]

@@ -1,3 +1,4 @@
+import json
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
@@ -11,6 +12,7 @@ import random
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
+
 # 1. Register API
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -20,7 +22,25 @@ def register_api(request):
         user = serializer.save()
         user.set_password(request.data.get('password'))
         user.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        # FORCE MONGODB TO SEND THE ARRAY
+        enrolled = getattr(user, 'enrolled_courses', [])
+        if not isinstance(enrolled, list):
+            enrolled = []
+
+        # Return the exact same bulletproof format as login!
+        return Response({
+            "message": "Registration successful",
+            "user": {
+                "id": str(user.id), # Convert MongoDB ID to string
+                "username": user.username,
+                "email": user.email,
+                "role": getattr(user, 'role', 'student'),
+                "enrolled_courses": enrolled,
+                "recommended_domain": getattr(user, 'recommended_domain', None)
+            }
+        }, status=status.HTTP_201_CREATED)
+        
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 # 2. Login API
@@ -36,13 +56,26 @@ def login_api(request):
 
         if user is not None:
             login(request, user)
-            # --- ADD THIS: Get or create the security token ---
             token, created = Token.objects.get_or_create(user=user)
+            
+            # FORCE MONGODB TO SEND THE ARRAY
+            enrolled = getattr(user, 'enrolled_courses', [])
+            if not isinstance(enrolled, list):
+                enrolled = []
+
             return Response({
                 "message": "Login successful",
                 "token": token.key,  
-                "user": UserSerializer(user).data,
+                "user": {
+                    "id": str(user.id), # Convert MongoDB ID to string
+                    "username": user.username,
+                    "email": user.email,
+                    "role": getattr(user, 'role', 'student'),
+                    "enrolled_courses": enrolled, # Manually injected
+                    "recommended_domain": getattr(user, 'recommended_domain', None)
+                }
             }, status=status.HTTP_200_OK)
+            
         return Response({"error": "Invalid credentials"}, status=status.HTTP_401_UNAUTHORIZED)
     except CustomUser.DoesNotExist:
         return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -150,15 +183,16 @@ def update_skills(request):
     user.enrolled_courses = enrolled_courses
     user.save()
     
-    # Return the updated user object back to React to update local storage
+    # Return the exact same manual structure back to React
     return Response({
         "message": "Skills updated successfully",
         "user": {
+            "id": str(user.id),
             "username": user.username,
             "email": user.email,
             "role": getattr(user, 'role', 'student'),
             "enrolled_courses": user.enrolled_courses,
-            "recommended_domain": getattr(user, 'recommended_domain', None),
+            "recommended_domain": getattr(user, 'recommended_domain', None)
         }
     }, status=status.HTTP_200_OK)
 
@@ -231,9 +265,9 @@ def update_profile_api(request):
     last_name = request.data.get('last_name', user.last_name)
     email = request.data.get('email', user.email)
 
-    # 2. Check if the user is trying to change their email to one that already exists
+    # 2. FIX: Check if the user is trying to change their email using CustomUser, not User
     if email and email != user.email:
-        if User.objects.filter(email=email).exists():
+        if CustomUser.objects.filter(email=email).exists():
             return Response(
                 {"error": "A user with this email already exists."}, 
                 status=status.HTTP_400_BAD_REQUEST
@@ -243,25 +277,28 @@ def update_profile_api(request):
     user.first_name = first_name
     user.last_name = last_name
     user.email = email
-    
-    # If you have custom fields on your user model (like phone_number), add them here:
-    # user.phone_number = request.data.get('phone_number', user.phone_number)
-
     user.save()
 
-    # 4. Return success message and the updated user data for the frontend
+    # --- MONGODB FIX: Safely extract the array ---
+    enrolled = getattr(user, 'enrolled_courses', [])
+    if not isinstance(enrolled, list):
+        enrolled = []
+
+    # 4. Return success message and the full, perfectly structured user data
     return Response({
         "message": "Profile updated successfully.",
         "user": {
-            "id": user.id,
+            "id": str(user.id), # Cast MongoDB ID to string
             "username": user.username,
             "first_name": user.first_name,
             "last_name": user.last_name,
             "email": user.email,
-            # If you are returning enrolled_courses in login/result, you can add it here too
+            # MUST include these so React doesn't overwrite them with 'undefined'!
+            "role": getattr(user, 'role', 'student'),
+            "enrolled_courses": enrolled,
+            "recommended_domain": getattr(user, 'recommended_domain', None)
         }
     }, status=status.HTTP_200_OK)
-
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def student_progress_api(request):
@@ -476,3 +513,148 @@ def domain_api(request):
             return Response({"message": "Domain added successfully!", "domain": domain.name}, status=status.HTTP_201_CREATED)
         else:
             return Response({"error": "This domain already exists."}, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_dashboard_api(request):
+    # Security Check: Only allow Admins
+    if request.user.role != 'admin':
+        return Response({"error": "Unauthorized access. Admins only."}, status=status.HTTP_403_FORBIDDEN)
+
+    # 1. Get all users
+    users = CustomUser.objects.all().order_by('-date_joined')
+    user_list = []
+    for u in users:
+        user_list.append({
+            "id": str(u.id),
+            "username": u.username,
+            "email": u.email,
+            "role": u.role.capitalize(),
+            "domain": u.recommended_domain or "None",
+            "feedback": u.mentor_feedback or "",
+            "date_joined": u.date_joined.strftime("%b %d, %Y")
+        })
+
+    # 2. Get all projects
+    projects = Project.objects.all().order_by('-created_at')
+    project_list = []
+    for p in projects:
+        project_list.append({
+            "id": str(p.id),
+            "title": p.title,
+            "domain": p.domain,
+            "student": p.user.username,
+            "url": p.project_url,
+            "created_at": p.created_at.strftime("%b %d, %Y")
+        })
+
+    return Response({
+        "users": user_list,
+        "projects": project_list
+    }, status=status.HTTP_200_OK)
+
+
+from django.shortcuts import get_object_or_404
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def generate_portfolio_by_mentor(request):
+    # Security check: Only allow Mentors
+    if request.user.role != 'mentor':
+        return Response({"error": "Only mentors can generate portfolios."}, status=status.HTTP_403_FORBIDDEN)
+        
+    student_id = request.data.get('student_id')
+    student = get_object_or_404(CustomUser, id=student_id) # Find the specific student
+    
+    # Create the project entry directly on the student's portfolio
+    Project.objects.create(
+        user=student,
+        title=request.data.get('title'),
+        domain=request.data.get('domain'),
+        description=request.data.get('description'),
+        project_url=""
+    )
+    
+    return Response({"message": "Portfolio generated successfully!"}, status=status.HTTP_201_CREATED)
+
+# This API generates a beginner-friendly project recommendation using Gemini, based on the student's recommended domain or enrolled courses. It returns a simple JSON object with the project title and description for React to display on the dashboard.
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def generate_ai_task_api(request):
+    user = request.user
+    
+    # Check what domain the student is studying. Fallback to general freelancing if none.
+    domain = user.recommended_domain
+    if not domain and user.enrolled_courses:
+        domain = user.enrolled_courses[0]
+    elif not domain:
+        domain = "General Freelancing"
+
+    # Strict prompt telling Gemini to act as a mentor and return ONLY JSON
+    prompt = f"""
+    You are an expert career mentor. Based on the skill '{domain}', recommend ONE beginner-friendly, practical project the student can build for their portfolio right now.
+    Return ONLY a raw JSON object. Do not include markdown formatting, backticks, or extra text.
+    Format exactly like this:
+    {{
+        "title": "Project Title Here",
+        "description": "A 2-sentence description of what they should build and why it helps their portfolio."
+    }}
+    """
+
+    try:
+        # 1. Dynamically find the correct model for your API key
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+        
+        if not available_models:
+            return Response({"error": "AI models unavailable."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        # 2. Pick the best one (prefer 'flash' for speed, otherwise take the first available)
+        selected_model_name = available_models[0] 
+        for name in available_models:
+            if 'flash' in name:
+                selected_model_name = name
+                break
+
+        # Remove 'models/' prefix so the library doesn't crash
+        clean_model_name = selected_model_name.replace('models/', '')
+
+        # 3. Generate the response with the dynamic model
+        model = genai.GenerativeModel(clean_model_name)
+        response = model.generate_content(prompt)
+        
+        # Clean the response just in case Gemini adds markdown code blocks
+        cleaned_text = response.text.replace('```json', '').replace('```', '').strip()
+        
+        # Parse it into a dictionary and send it to React
+        task_data = json.loads(cleaned_text)
+        return Response(task_data, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        print(f"AI Task Gen Error: {e}")
+        return Response({"error": "Failed to generate AI task."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+
+        # Fetch Current User API (For React Page Refreshes)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_current_user_api(request):
+    user = request.user
+    
+    # FORCE MONGODB TO SEND THE ARRAY
+    enrolled = getattr(user, 'enrolled_courses', [])
+    if not isinstance(enrolled, list):
+        enrolled = []
+
+    return Response({
+        "user": {
+            "id": str(user.id),
+            "username": user.username,
+            "email": user.email,
+            "role": getattr(user, 'role', 'student'),
+            "enrolled_courses": enrolled, 
+            "recommended_domain": getattr(user, 'recommended_domain', None)
+        }
+    }, status=status.HTTP_200_OK)

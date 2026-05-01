@@ -53,7 +53,6 @@ const MentorDashboard = () => {
         { headers: { Authorization: `Token ${token}` } },
       );
 
-      // Add the new domain to our list so the UI updates instantly
       setLocalDomains([...localDomains, res.data.domain]);
       setNewDomain("");
       alert(res.data.message);
@@ -155,6 +154,34 @@ const MentorDashboard = () => {
     } catch (err) {
       console.error("Failed to submit feedback", err);
       alert("Failed to submit feedback. Backend might not be ready.");
+    }
+  };
+
+  // --- NEW: Generate Portfolio Entry for Student ---
+  const handleGeneratePortfolio = async (student) => {
+    if (
+      !window.confirm(
+        `Generate a public portfolio entry for @${student.username}?`,
+      )
+    )
+      return;
+
+    try {
+      const token = localStorage.getItem("token");
+      await axios.post(
+        "http://127.0.0.1:8000/api/mentor/generate-portfolio/",
+        {
+          student_id: student.id,
+          title: `Assessment Completed: ${student.domain}`,
+          domain: student.domain,
+          description: `Successfully completed the skill assessment with a score of ${student.score}/10. Mentor recommendation: ${student.result}.`,
+        },
+        { headers: { Authorization: `Token ${token}` } },
+      );
+      alert(`Portfolio entry successfully generated for @${student.username}!`);
+    } catch (err) {
+      console.error("Failed to generate portfolio", err);
+      alert("Failed to generate portfolio entry.");
     }
   };
 
@@ -424,6 +451,7 @@ const MentorDashboard = () => {
                         {student.status}
                       </span>
                     </div>
+
                     <div className="mt-4 border-t border-slate-200 pt-4">
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Leave Feedback
@@ -437,7 +465,15 @@ const MentorDashboard = () => {
                           handleFeedbackChange(student.id, e.target.value)
                         }
                       ></textarea>
-                      <div className="flex justify-end">
+                      <div className="flex justify-end gap-3">
+                        {/* THE NEW GENERATE PORTFOLIO BUTTON */}
+                        <button
+                          onClick={() => handleGeneratePortfolio(student)}
+                          className="bg-purple-100 text-purple-700 border border-purple-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors"
+                        >
+                          Generate Portfolio Entry
+                        </button>
+
                         <button
                           onClick={() => submitFeedback(student.id)}
                           disabled={!feedbackText[student.id]}
