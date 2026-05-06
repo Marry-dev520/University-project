@@ -20,4 +20,11 @@ urlpatterns = [
     path('api/admin/dashboard/', views.admin_dashboard_api, name='admin_dashboard'),
     path('api/mentor/generate-portfolio/', views.generate_portfolio_by_mentor, name='generate_portfolio'),
     path('api/ai-task/', views.generate_ai_task_api, name='ai_task'),
+    path('api/evaluate/', views.automated_evaluation_api, name='evaluate_submission'),
+    path('api/analytics/clusters/', views.student_analytics_clustering_api, name='student_clusters'),
+    path('api/jobs/', views.fetch_freelance_jobs_api, name='freelance_jobs'),
+    path('api/portfolio/<str:username>/pdf/', views.generate_portfolio_pdf, name='portfolio_pdf'),
+    path('api/admin/users/<int:pk>/', views.admin_user_detail_api),
+path('api/admin/projects/<int:pk>/', views.admin_project_detail_api),
+
 ]
