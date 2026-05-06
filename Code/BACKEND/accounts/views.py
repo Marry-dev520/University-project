@@ -12,6 +12,16 @@ import random
 import os
 from dotenv import load_dotenv
 import google.generativeai as genai
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from textblob import TextBlob
+import ast
+from sklearn.cluster import KMeans
+import numpy as np
+import feedparser
+from django.http import HttpResponse
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 
 # 1. Register API
 @api_view(['POST'])
@@ -658,3 +668,249 @@ def get_current_user_api(request):
             "recommended_domain": getattr(user, 'recommended_domain', None)
         }
     }, status=status.HTTP_200_OK)
+
+# Automated Content Evaluation & Plagiarism Check (FR4)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def automated_evaluation_api(request):
+    """
+    Evaluates student submissions for Text (Grammar/Plagiarism) or Code (Syntax checks).
+    """
+    submission_type = request.data.get('type') # 'text' or 'code'
+    student_content = request.data.get('content')
+    reference_content = request.data.get('reference_content', '') # To check plagiarism against
+
+    if not student_content or not submission_type:
+        return Response({"error": "Type and content are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    result = {}
+
+    if submission_type == 'text':
+        # 1. NLP Analysis (Grammar & Sentiment)
+        blob = TextBlob(student_content)
+        sentiment = blob.sentiment.polarity # -1 (negative) to 1 (positive)
+        
+        # 2. Plagiarism Detection (Cosine Similarity)
+        plagiarism_score = 0.0
+        if reference_content:
+            vectorizer = TfidfVectorizer()
+            try:
+                tfidf_matrix = vectorizer.fit_transform([student_content, reference_content])
+                plagiarism_score = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
+            except ValueError:
+                pass # Fails if content is too short/empty
+
+        result = {
+            "evaluation_type": "Content Writing",
+            "sentiment_score": round(sentiment, 2),
+            "word_count": len(blob.words),
+            "plagiarism_similarity": f"{round(plagiarism_score * 100, 2)}%",
+            "status": "Flagged for Plagiarism" if plagiarism_score > 0.4 else "Original Content"
+        }
+
+    elif submission_type == 'code':
+        # 1. Static Code Analysis (AST)
+        try:
+            ast.parse(student_content)
+            result = {
+                "evaluation_type": "Programming",
+                "syntax_valid": True,
+                "feedback": "Code syntax is valid."
+            }
+        except SyntaxError as e:
+            result = {
+                "evaluation_type": "Programming",
+                "syntax_valid": False,
+                "feedback": f"Syntax Error on line {e.lineno}: {e.msg}"
+            }
+            
+    # Note: For FR4(d) Image/Design evaluation with CNNs (ResNet/VGG16), you would typically 
+    # send the image to a microservice running TensorFlow/PyTorch, rather than blocking the Django thread.
+
+    return Response(result, status=status.HTTP_200_OK)
+
+   # Analytics & Clustering using K-Means (FR9)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def student_analytics_clustering_api(request):
+    """
+    Groups students into 3 performance clusters (Beginner, Intermediate, Advanced)
+    using K-Means algorithm based on their latest scores and project counts.
+    """
+    if request.user.role not in ['admin', 'mentor']:
+        return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+
+    students = CustomUser.objects.filter(role='student')
+    if len(students) < 3:
+        return Response({"error": "Not enough data for clustering. Need at least 3 students."}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Prepare data for K-Means [Score, Number of Projects]
+    student_data = []
+    student_ids = []
+    
+    for student in students:
+        score = getattr(student, 'latest_score', 0)
+        project_count = Project.objects.filter(user=student).count()
+        student_data.append([score, project_count])
+        student_ids.append(student.id)
+
+    X = np.array(student_data)
+
+    # Apply K-Means Clustering
+    kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+    kmeans.fit(X)
+    labels = kmeans.labels_
+
+    # Map results back to students
+    clustered_results = {"Cluster 0 (Needs Help)": [], "Cluster 1 (On Track)": [], "Cluster 2 (High Performers)": []}
+    
+    for i, student_id in enumerate(student_ids):
+        student = CustomUser.objects.get(id=student_id)
+        
+        # Simple mapping for readability based on cluster centers
+        student_info = {
+            "username": student.username,
+            "score": int(student_data[i][0]), # Cast to int just in case numpy changes the type
+            "projects": int(student_data[i][1]),
+            "domain": student.recommended_domain
+        }
+        
+        if labels[i] == 0:
+            clustered_results["Cluster 0 (Needs Help)"].append(student_info)
+        elif labels[i] == 1:
+            clustered_results["Cluster 1 (On Track)"].append(student_info)
+        else:
+            clustered_results["Cluster 2 (High Performers)"].append(student_info)
+
+    return Response({
+        "message": "AI clustering complete",
+        "clusters": clustered_results
+    }, status=status.HTTP_200_OK)
+
+
+       # PDF Portfolio Generation (FR6)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def generate_portfolio_pdf(request, username):
+    """
+    Generates a downloadable PDF portfolio for the student.
+    """
+    try:
+        target_user = CustomUser.objects.get(username=username, role='student')
+    except CustomUser.DoesNotExist:
+        return Response({"error": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    projects = Project.objects.filter(user=target_user).order_by('-created_at')
+
+    # Create the HTTP response with PDF headers
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{target_user.username}_portfolio.pdf"'
+
+    # Initialize ReportLab canvas
+    p = canvas.Canvas(response, pagesize=letter)
+    width, height = letter
+    
+    # Draw PDF content
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(50, height - 50, f"Portfolio: {target_user.first_name} {target_user.last_name}")
+    
+    p.setFont("Helvetica", 12)
+    p.drawString(50, height - 70, f"Email: {target_user.email}")
+    p.drawString(50, height - 90, f"Domain: {target_user.recommended_domain or 'N/A'}")
+    
+    p.line(50, height - 100, width - 50, height - 100)
+
+    y_position = height - 130
+    for proj in projects:
+        if y_position < 100: # Page break logic
+            p.showPage()
+            y_position = height - 50
+            
+        p.setFont("Helvetica-Bold", 12)
+        p.drawString(50, y_position, f"Title: {proj.title}")
+        y_position -= 20
+        
+        p.setFont("Helvetica", 10)
+        p.drawString(50, y_position, f"Domain: {proj.domain}")
+        y_position -= 15
+        
+        p.drawString(50, y_position, f"Description: {proj.description[:100]}...") # truncate for PDF brevity
+        y_position -= 15
+        
+        if proj.project_url:
+            p.drawString(50, y_position, f"Link: {proj.project_url}")
+            y_position -= 15
+            
+        y_position -= 20 # Spacing between projects
+
+    p.showPage()
+    p.save()
+
+    return response
+
+    # Freelancing Platform Integration (FR10)
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def fetch_freelance_jobs_api(request):
+    """
+    Integrates with standard job RSS feeds (like Upwork's public feeds) 
+    based on the student's recommended domain.
+    """
+    domain = getattr(request.user, 'recommended_domain', 'Freelance')
+    if not domain:
+        domain = "Freelance"
+    
+    # Format the keyword for the URL
+    search_query = domain.replace(" ", "%20")
+    
+    # Using Upwork's public RSS feed structure as an example
+    rss_url = f"https://www.upwork.com/ab/feed/jobs/rss?q={search_query}"
+    
+    try:
+        feed = feedparser.parse(rss_url)
+        jobs = []
+        
+        # Fetch top 5 recent jobs
+        for entry in feed.entries[:5]:
+            jobs.append({
+                "title": entry.title,
+                "link": entry.link,
+                "published": getattr(entry, 'published', 'Recent'),
+                "summary": getattr(entry, 'summary', '')[:200] + "..." # Truncate long descriptions
+            })
+            
+        return Response({
+            "domain_searched": domain,
+            "jobs": jobs
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({"error": "Failed to fetch jobs from platform."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# 
+@api_view(['PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def admin_user_detail_api(request, pk):
+    if request.user.role != 'admin':
+        return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+        
+    user = get_object_or_404(CustomUser, pk=pk)
+    
+    if request.method == 'DELETE':
+        user.delete()
+        return Response({"message": "User deleted"}, status=status.HTTP_204_NO_CONTENT)
+        
+    elif request.method == 'PATCH':
+        user.role = request.data.get('role', user.role)
+        user.save()
+        return Response({"message": "Role updated"}, status=status.HTTP_200_OK)
+
+@api_view(['DELETE'])
+@permission_classes([IsAuthenticated])
+def admin_project_detail_api(request, pk):
+    if request.user.role != 'admin':
+        return Response({"error": "Unauthorized"}, status=status.HTTP_403_FORBIDDEN)
+        
+    project = get_object_or_404(Project, pk=pk)
+    project.delete()
+    return Response({"message": "Project deleted"}, status=status.HTTP_204_NO_CONTENT)

@@ -6,7 +6,6 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Set default tab to "users" since it's the first tab now
   const [activeTab, setActiveTab] = useState("users");
 
   useEffect(() => {
@@ -32,12 +31,89 @@ const AdminDashboard = () => {
     fetchAdminData();
   }, []);
 
+  // --- CRUD OPERATIONS ---
+
+  // 1. UPDATE USER ROLE
+  const handleUpdateRole = async (userId, newRole) => {
+    try {
+      const token = localStorage.getItem("token");
+      await axios.patch(
+        `http://127.0.0.1:8000/api/admin/users/${userId}/`,
+        { role: newRole },
+        { headers: { Authorization: `Token ${token}` } },
+      );
+
+      // Update local UI state
+      setData((prev) => ({
+        ...prev,
+        users: prev.users.map((u) =>
+          u.id === userId ? { ...u, role: newRole } : u,
+        ),
+      }));
+      alert(`User role updated to ${newRole}`);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to update user role.");
+    }
+  };
+
+  // 2. DELETE USER
+  const handleDeleteUser = async (userId, username) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to permanently delete @${username}?`,
+      )
+    )
+      return;
+
+    try {
+      const token = localStorage.getItem("token");
+      await axios.delete(`http://127.0.0.1:8000/api/admin/users/${userId}/`, {
+        headers: { Authorization: `Token ${token}` },
+      });
+
+      // Update local UI state
+      setData((prev) => ({
+        ...prev,
+        users: prev.users.filter((u) => u.id !== userId),
+      }));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete user.");
+    }
+  };
+
+  // 3. DELETE PROJECT
+  const handleDeleteProject = async (projectId, title) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete the project: "${title}"?`,
+      )
+    )
+      return;
+
+    try {
+      const token = localStorage.getItem("token");
+      await axios.delete(
+        `http://127.0.0.1:8000/api/admin/projects/${projectId}/`,
+        {
+          headers: { Authorization: `Token ${token}` },
+        },
+      );
+
+      // Update local UI state
+      setData((prev) => ({
+        ...prev,
+        projects: prev.projects.filter((p) => p.id !== projectId),
+      }));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete project.");
+    }
+  };
+
   // --- Derived Analytics Logic ---
-
-  // 1. Filter out only students
-  const students = data.users.filter((u) => u.role === "Student");
-
-  // 2. Calculate Assessment Completion (Students who have a recommended domain)
+  const students = data.users.filter((u) => u.role.toLowerCase() === "student");
   const studentsWithAssessments = students.filter(
     (u) => u.domain && u.domain !== "None",
   );
@@ -46,18 +122,15 @@ const AdminDashboard = () => {
       ? Math.round((studentsWithAssessments.length / students.length) * 100)
       : 0;
 
-  // 3. Calculate Domain Popularity Distribution
   const domainDistribution = studentsWithAssessments.reduce((acc, user) => {
     acc[user.domain] = (acc[user.domain] || 0) + 1;
     return acc;
   }, {});
 
-  // Sort domains by highest count
   const sortedDomains = Object.entries(domainDistribution).sort(
     (a, b) => b[1] - a[1],
   );
 
-  // 4. Mentor Feedback Filtering
   const reportedFeedback = data.users.filter(
     (user) => user.feedback && user.feedback.trim() !== "",
   );
@@ -113,7 +186,7 @@ const AdminDashboard = () => {
 
       {/* Admin Panel Main Section */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {/* Navigation Tabs - MOVED ANALYTICS TO THE END */}
+        {/* Navigation Tabs */}
         <div className="flex border-b border-gray-200 bg-slate-50 overflow-x-auto custom-scrollbar">
           <button
             onClick={() => setActiveTab("users")}
@@ -143,15 +216,16 @@ const AdminDashboard = () => {
 
         {/* Tab Content */}
         <div className="p-6 overflow-x-auto">
-          {/* USERS TAB */}
+          {/* USERS TAB WITH CRUD */}
           {activeTab === "users" && (
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-slate-500 text-sm uppercase tracking-wider">
                   <th className="p-3 font-medium rounded-tl-lg">Username</th>
                   <th className="p-3 font-medium">Email</th>
-                  <th className="p-3 font-medium">Role</th>
                   <th className="p-3 font-medium">Joined</th>
+                  <th className="p-3 font-medium">Role</th>
+                  <th className="p-3 font-medium rounded-tr-lg">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -164,15 +238,37 @@ const AdminDashboard = () => {
                       @{user.username}
                     </td>
                     <td className="p-3 text-slate-600">{user.email}</td>
-                    <td className="p-3">
-                      <span
-                        className={`px-2.5 py-1 text-xs font-bold rounded-full ${user.role === "Admin" ? "bg-purple-100 text-purple-700" : user.role === "Mentor" ? "bg-amber-100 text-amber-700" : "bg-emerald-100 text-emerald-700"}`}
-                      >
-                        {user.role}
-                      </span>
-                    </td>
                     <td className="p-3 text-slate-500 text-sm">
                       {user.date_joined}
+                    </td>
+                    <td className="p-3">
+                      {/* ROLE UPDATE DROPDOWN */}
+                      <select
+                        value={user.role}
+                        onChange={(e) =>
+                          handleUpdateRole(user.id, e.target.value)
+                        }
+                        className={`px-2 py-1 text-xs font-bold rounded-full border cursor-pointer outline-none ${
+                          user.role.toLowerCase() === "admin"
+                            ? "bg-purple-100 text-purple-700 border-purple-200"
+                            : user.role.toLowerCase() === "mentor"
+                              ? "bg-amber-100 text-amber-700 border-amber-200"
+                              : "bg-emerald-100 text-emerald-700 border-emerald-200"
+                        }`}
+                      >
+                        <option value="Student">Student</option>
+                        <option value="Mentor">Mentor</option>
+                        <option value="Admin">Admin</option>
+                      </select>
+                    </td>
+                    <td className="p-3">
+                      {/* DELETE USER BUTTON */}
+                      <button
+                        onClick={() => handleDeleteUser(user.id, user.username)}
+                        className="text-red-500 hover:text-red-700 text-sm font-semibold bg-red-50 hover:bg-red-100 px-3 py-1 rounded transition-colors"
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -180,7 +276,7 @@ const AdminDashboard = () => {
             </table>
           )}
 
-          {/* PROJECTS TAB */}
+          {/* PROJECTS TAB WITH CRUD */}
           {activeTab === "projects" && (
             <table className="w-full text-left border-collapse">
               <thead>
@@ -191,12 +287,13 @@ const AdminDashboard = () => {
                   <th className="p-3 font-medium">Domain</th>
                   <th className="p-3 font-medium">Student</th>
                   <th className="p-3 font-medium">Link</th>
+                  <th className="p-3 font-medium rounded-tr-lg">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {data.projects.length === 0 ? (
                   <tr>
-                    <td colSpan="4" className="p-6 text-center text-slate-500">
+                    <td colSpan="5" className="p-6 text-center text-slate-500">
                       No projects submitted yet.
                     </td>
                   </tr>
@@ -226,6 +323,17 @@ const AdminDashboard = () => {
                         ) : (
                           <span className="text-slate-400 text-sm">No URL</span>
                         )}
+                      </td>
+                      <td className="p-3">
+                        {/* DELETE PROJECT BUTTON */}
+                        <button
+                          onClick={() =>
+                            handleDeleteProject(project.id, project.title)
+                          }
+                          className="text-red-500 hover:text-red-700 text-sm font-semibold bg-red-50 hover:bg-red-100 px-3 py-1 rounded transition-colors"
+                        >
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -267,16 +375,13 @@ const AdminDashboard = () => {
           {/* ANALYTICS TAB */}
           {activeTab === "analytics" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Skill Distribution Chart */}
               <div className="bg-slate-50 p-6 rounded-xl border border-slate-100">
                 <h3 className="text-lg font-bold text-slate-900 mb-4">
                   Skill Domain Distribution
                 </h3>
                 <p className="text-sm text-slate-500 mb-6">
-                  Current breakdown of recommended paths for students based on
-                  their quiz assessments.
+                  Current breakdown of recommended paths for students.
                 </p>
-
                 <div className="space-y-4">
                   {sortedDomains.length === 0 ? (
                     <p className="text-slate-400 italic text-sm">
@@ -310,7 +415,6 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              {/* Progress Insights Text */}
               <div className="bg-slate-50 p-6 rounded-xl border border-slate-100 flex flex-col justify-between">
                 <div>
                   <h3 className="text-lg font-bold text-slate-900 mb-4">
@@ -338,31 +442,11 @@ const AdminDashboard = () => {
                           Trending Skill:
                         </strong>{" "}
                         {sortedDomains.length > 0
-                          ? `${sortedDomains[0][0]} is currently the most popular domain among incoming talent.`
+                          ? `${sortedDomains[0][0]} is currently the most popular domain.`
                           : "Not enough data yet."}
                       </p>
                     </li>
-                    <li className="flex items-start gap-3">
-                      <span className="text-amber-500 text-xl leading-none">
-                        &bull;
-                      </span>
-                      <p className="text-sm text-slate-600">
-                        <strong className="text-slate-800">
-                          Mentor Interactions:
-                        </strong>{" "}
-                        {reportedFeedback.length} pieces of constructive
-                        feedback have been delivered to guide student
-                        portfolios.
-                      </p>
-                    </li>
                   </ul>
-                </div>
-
-                <div className="mt-6 p-4 bg-sky-100 rounded-lg border border-sky-200">
-                  <p className="text-xs text-sky-800 font-medium">
-                    💡 Tip: Encourage mentors to target domains with lower
-                    student counts to ensure balanced platform growth.
-                  </p>
                 </div>
               </div>
             </div>

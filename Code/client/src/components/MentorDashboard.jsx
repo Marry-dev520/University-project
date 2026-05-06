@@ -21,6 +21,11 @@ const MentorDashboard = () => {
   const [loadingProgress, setLoadingProgress] = useState(false);
   const [feedbackText, setFeedbackText] = useState({});
 
+  // --- NEW STATES: AI Analytics & Clustering (FR9) ---
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+  const [clusterData, setClusterData] = useState({});
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
   // --- Fetch Domains from Database on Load ---
   useEffect(() => {
     const fetchDomains = async () => {
@@ -121,7 +126,6 @@ const MentorDashboard = () => {
       setStudentsProgress(res.data);
     } catch (err) {
       console.error("Failed to fetch student progress:", err);
-      // Fallback
       setStudentsProgress([
         {
           id: 1,
@@ -157,7 +161,7 @@ const MentorDashboard = () => {
     }
   };
 
-  // --- NEW: Generate Portfolio Entry for Student ---
+  // --- Generate Portfolio Entry for Student ---
   const handleGeneratePortfolio = async (student) => {
     if (
       !window.confirm(
@@ -185,9 +189,32 @@ const MentorDashboard = () => {
     }
   };
 
+  // --- NEW: FR9 Fetch AI Analytics & Clusters ---
+  const fetchAnalytics = async () => {
+    setIsAnalyticsOpen(true);
+    setLoadingAnalytics(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.get(
+        "http://127.0.0.1:8000/api/analytics/clusters/",
+        { headers: { Authorization: `Token ${token}` } },
+      );
+      setClusterData(res.data.clusters || {});
+    } catch (err) {
+      console.error("Failed to fetch analytics:", err);
+      alert(
+        err.response?.data?.error ||
+          "Failed to load AI clustering data. Make sure you have at least 3 students.",
+      );
+    } finally {
+      setLoadingAnalytics(false);
+    }
+  };
+
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Updated Grid from 3 to 4 columns to fit the new card! */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* Add Question Card */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-indigo-100 border-t-4 border-t-indigo-500 flex flex-col justify-between">
           <div>
@@ -224,7 +251,26 @@ const MentorDashboard = () => {
           </button>
         </div>
 
-        {/* My Domains Card */}
+        {/* --- NEW: AI Analytics Card --- */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-rose-100 border-t-4 border-t-rose-500 flex flex-col justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
+              AI Analytics <span>✦</span>
+            </h2>
+            <p className="text-slate-600 mb-6 text-sm">
+              Use K-Means clustering to identify high-performers and students
+              needing help.
+            </p>
+          </div>
+          <button
+            onClick={fetchAnalytics}
+            className="bg-rose-600 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-rose-700 transition-colors w-max"
+          >
+            View Clusters
+          </button>
+        </div>
+
+        {/* Manage Domains Card */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-amber-100 border-t-4 border-t-amber-500 flex flex-col justify-between">
           <div>
             <h2 className="text-lg font-bold text-slate-900 mb-2">
@@ -233,7 +279,6 @@ const MentorDashboard = () => {
             <p className="text-slate-600 mb-4 text-sm">
               Add new skill categories to the database for students.
             </p>
-
             <form onSubmit={handleAddDomain} className="flex gap-2 mb-4">
               <input
                 type="text"
@@ -249,7 +294,6 @@ const MentorDashboard = () => {
                 Save
               </button>
             </form>
-
             <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1 custom-scrollbar">
               {localDomains.map((domain) => (
                 <span
@@ -263,6 +307,104 @@ const MentorDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* ----------- NEW: AI Analytics Modal ----------- */}
+      {isAnalyticsOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-5xl max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                Machine Learning Student Clusters
+                <span className="bg-rose-100 text-rose-700 text-xs px-2 py-1 rounded font-bold border border-rose-200">
+                  K-Means
+                </span>
+              </h2>
+              <button
+                onClick={() => setIsAnalyticsOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-2xl font-bold"
+              >
+                &times;
+              </button>
+            </div>
+
+            {loadingAnalytics ? (
+              <div className="text-center py-10 text-slate-500 animate-pulse">
+                Running K-Means Algorithm...
+              </div>
+            ) : Object.keys(clusterData).length === 0 ? (
+              <div className="text-center py-10 text-slate-500">
+                Not enough data to form clusters. Need at least 3 students.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {Object.entries(clusterData).map(([clusterName, students]) => {
+                  // Determine styling based on cluster name
+                  let colorClass =
+                    "bg-slate-50 border-slate-200 text-slate-800";
+                  let headerClass = "text-slate-900";
+
+                  if (clusterName.includes("Needs Help")) {
+                    colorClass = "bg-red-50 border-red-200";
+                    headerClass = "text-red-700";
+                  } else if (clusterName.includes("On Track")) {
+                    colorClass = "bg-blue-50 border-blue-200";
+                    headerClass = "text-blue-700";
+                  } else if (clusterName.includes("High Performers")) {
+                    colorClass = "bg-emerald-50 border-emerald-200";
+                    headerClass = "text-emerald-700";
+                  }
+
+                  return (
+                    <div
+                      key={clusterName}
+                      className={`border rounded-xl p-4 ${colorClass}`}
+                    >
+                      <h3
+                        className={`text-lg font-bold mb-3 border-b pb-2 border-opacity-20 ${headerClass}`}
+                      >
+                        {clusterName}{" "}
+                        <span className="text-sm font-normal text-slate-500 float-right">
+                          ({students.length})
+                        </span>
+                      </h3>
+
+                      {students.length === 0 ? (
+                        <p className="text-sm text-slate-500 italic">
+                          No students in this cluster.
+                        </p>
+                      ) : (
+                        <div className="space-y-3">
+                          {students.map((student, idx) => (
+                            <div
+                              key={idx}
+                              className="bg-white p-3 rounded shadow-sm border border-white border-opacity-50"
+                            >
+                              <p className="font-bold text-slate-800">
+                                @{student.username}
+                              </p>
+                              <p className="text-xs text-slate-500 mb-1">
+                                {student.domain || "No Domain"}
+                              </p>
+                              <div className="flex justify-between text-sm mt-2">
+                                <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+                                  Score: <b>{student.score}</b>
+                                </span>
+                                <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-600">
+                                  Projects: <b>{student.projects}</b>
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ----------- Add Question Modal ----------- */}
       {isAddQuestionOpen && (
@@ -451,7 +593,6 @@ const MentorDashboard = () => {
                         {student.status}
                       </span>
                     </div>
-
                     <div className="mt-4 border-t border-slate-200 pt-4">
                       <label className="block text-sm font-medium text-slate-700 mb-2">
                         Leave Feedback
@@ -466,14 +607,12 @@ const MentorDashboard = () => {
                         }
                       ></textarea>
                       <div className="flex justify-end gap-3">
-                        {/* THE NEW GENERATE PORTFOLIO BUTTON */}
                         <button
                           onClick={() => handleGeneratePortfolio(student)}
                           className="bg-purple-100 text-purple-700 border border-purple-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-200 transition-colors"
                         >
                           Generate Portfolio Entry
                         </button>
-
                         <button
                           onClick={() => submitFeedback(student.id)}
                           disabled={!feedbackText[student.id]}
