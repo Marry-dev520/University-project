@@ -133,7 +133,6 @@ USE_TZ = True
 
 
 
-STATIC_URL = 'static/'
 AUTHENTICATION_BACKENDS = [
     # 'accounts.backends.EmailBackend',
     # 'accounts.backends.CustomBackend',
