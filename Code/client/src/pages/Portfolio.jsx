@@ -25,7 +25,7 @@ const Portfolio = () => {
     const fetchPortfolio = async () => {
       try {
         const res = await axios.get(
-          `http://127.0.0.1:8000/api/portfolio/${username}/`,
+          `https://shark-app-jifss.ondigitalocean.app/api/portfolio/${username}/`,
         );
         setPortfolioData(res.data);
       } catch (err) {
@@ -41,9 +41,13 @@ const Portfolio = () => {
     e.preventDefault();
     try {
       const token = localStorage.getItem("token");
-      await axios.post("http://127.0.0.1:8000/api/add-project/", newProject, {
-        headers: { Authorization: `Token ${token}` },
-      });
+      await axios.post(
+        "https://shark-app-jifss.ondigitalocean.app/api/add-project/",
+        newProject,
+        {
+          headers: { Authorization: `Token ${token}` },
+        },
+      );
 
       alert("Project added!");
       setIsAdding(false);

@@ -31,9 +31,12 @@ const MentorDashboard = () => {
     const fetchDomains = async () => {
       try {
         const token = localStorage.getItem("token");
-        const res = await axios.get("http://127.0.0.1:8000/api/domains/", {
-          headers: { Authorization: `Token ${token}` },
-        });
+        const res = await axios.get(
+          "https://shark-app-jifss.ondigitalocean.app/api/domains/",
+          {
+            headers: { Authorization: `Token ${token}` },
+          },
+        );
         setLocalDomains(res.data);
         if (res.data.length > 0) {
           setQuestionData((prev) => ({ ...prev, domain: res.data[0] }));
@@ -53,7 +56,7 @@ const MentorDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.post(
-        "http://127.0.0.1:8000/api/domains/",
+        "https://shark-app-jifss.ondigitalocean.app/api/domains/",
         { name: newDomain },
         { headers: { Authorization: `Token ${token}` } },
       );
@@ -89,7 +92,7 @@ const MentorDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        "http://127.0.0.1:8000/api/add-question/",
+        "https://shark-app-jifss.ondigitalocean.app/api/add-question/",
         questionData,
         { headers: { Authorization: `Token ${token}` } },
       );
@@ -118,7 +121,7 @@ const MentorDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.get(
-        "http://127.0.0.1:8000/api/student-progress/",
+        "https://shark-app-jifss.ondigitalocean.app/api/student-progress/",
         {
           headers: { Authorization: `Token ${token}` },
         },
@@ -149,7 +152,7 @@ const MentorDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        "http://127.0.0.1:8000/api/submit-feedback/",
+        "https://shark-app-jifss.ondigitalocean.app/api/submit-feedback/",
         { result_id: resultId, feedback: feedbackText[resultId] },
         { headers: { Authorization: `Token ${token}` } },
       );
@@ -173,7 +176,7 @@ const MentorDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        "http://127.0.0.1:8000/api/mentor/generate-portfolio/",
+        "https://shark-app-jifss.ondigitalocean.app/api/mentor/generate-portfolio/",
         {
           student_id: student.id,
           title: `Assessment Completed: ${student.domain}`,
@@ -196,7 +199,7 @@ const MentorDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.get(
-        "http://127.0.0.1:8000/api/analytics/clusters/",
+        "https://shark-app-jifss.ondigitalocean.app/api/analytics/clusters/",
         { headers: { Authorization: `Token ${token}` } },
       );
       setClusterData(res.data.clusters || {});

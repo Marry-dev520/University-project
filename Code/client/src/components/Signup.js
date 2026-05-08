@@ -35,7 +35,7 @@ const Signup = () => {
       const { password_confirmation, ...dataToSend } = formData;
 
       const res = await axios.post(
-        "http://127.0.0.1:8000/api/register/",
+        "https://shark-app-jifss.ondigitalocean.app/api/register/",
         dataToSend,
       );
 

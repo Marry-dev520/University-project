@@ -1,5 +1,13 @@
 
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load the environment variables from your .env file
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -58,6 +66,7 @@ CORS_ALLOWED_ORIGINS = [
 
 #  Trust the frontend for CSRF tokens
 CSRF_TRUSTED_ORIGINS = [
+    "https://shark-app-jifss.ondigitalocean.app",
     "http://localhost:5173",
     "http://localhost:3000",
     "http://127.0.0.1:5173",
@@ -97,7 +106,10 @@ DATABASES = {
     'default': {
         'ENGINE': 'django_mongodb_backend',
         'NAME': 'Final-testing',
-        'HOST': 'mongodb://localhost:27017/', # Added 'mongodb:' 
+        'CLIENT': {
+            # This pulls the MONGO_URI from your .env file
+            'host': os.environ.get('MONGO_URI')
+        }
     }
 }
 DEFAULT_AUTO_FIELD = 'django_mongodb_backend.fields.ObjectIdAutoField'

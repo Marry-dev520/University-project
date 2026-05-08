@@ -39,9 +39,12 @@ const Quiz = () => {
         }
 
         // Fetch Questions
-        const res = await axios.get("http://127.0.0.1:8000/api/assessment/", {
-          headers: { Authorization: `Token ${token}` },
-        });
+        const res = await axios.get(
+          "https://shark-app-jifss.ondigitalocean.app/api/assessment/",
+          {
+            headers: { Authorization: `Token ${token}` },
+          },
+        );
 
         setQuestions(res.data);
       } catch (err) {
@@ -82,7 +85,7 @@ const Quiz = () => {
       const token = localStorage.getItem("token");
       // Send the answers to the DB to be checked
       const res = await axios.post(
-        "http://127.0.0.1:8000/api/result/",
+        "https://shark-app-jifss.ondigitalocean.app/api/result/",
         { answers: answers, domain: selectedDomain },
         { headers: { Authorization: `Token ${token}` } },
       );

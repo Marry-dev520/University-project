@@ -16,10 +16,13 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const res = await axios.post("http://127.0.0.1:8000/api/login/", {
-        email,
-        password,
-      });
+      const res = await axios.post(
+        "https://shark-app-jifss.ondigitalocean.app/api/login/",
+        {
+          email,
+          password,
+        },
+      );
 
       // Check if the nested 'user' object exists in the response
       if (res.data && res.data.user) {

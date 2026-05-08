@@ -54,7 +54,7 @@ const StudentDashboard = ({ user, setUser }) => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.patch(
-        "http://127.0.0.1:8000/api/update-skills/",
+        "https://shark-app-jifss.ondigitalocean.app/api/update-skills/",
         { enrolled_courses: selectedSkills },
         { headers: { Authorization: `Token ${token}` } },
       );
@@ -74,9 +74,12 @@ const StudentDashboard = ({ user, setUser }) => {
     setLoadingTask(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("http://127.0.0.1:8000/api/ai-task/", {
-        headers: { Authorization: `Token ${token}` },
-      });
+      const res = await axios.get(
+        "https://shark-app-jifss.ondigitalocean.app/api/ai-task/",
+        {
+          headers: { Authorization: `Token ${token}` },
+        },
+      );
       setAiTask(res.data);
     } catch (err) {
       console.error("Failed to fetch AI task", err);
@@ -94,7 +97,7 @@ const StudentDashboard = ({ user, setUser }) => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.get(
-        `http://127.0.0.1:8000/api/portfolio/${user.username}/pdf/`,
+        `https://shark-app-jifss.ondigitalocean.app/api/portfolio/${user.username}/pdf/`,
         {
           headers: { Authorization: `Token ${token}` },
           responseType: "blob", // CRITICAL FOR PDF FILES
@@ -122,9 +125,12 @@ const StudentDashboard = ({ user, setUser }) => {
     setLoadingJobs(true);
     try {
       const token = localStorage.getItem("token");
-      const res = await axios.get("http://127.0.0.1:8000/api/jobs/", {
-        headers: { Authorization: `Token ${token}` },
-      });
+      const res = await axios.get(
+        "https://shark-app-jifss.ondigitalocean.app/api/jobs/",
+        {
+          headers: { Authorization: `Token ${token}` },
+        },
+      );
       setJobs(res.data.jobs || []);
     } catch (err) {
       console.error("Failed to fetch jobs", err);
@@ -141,7 +147,7 @@ const StudentDashboard = ({ user, setUser }) => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.post(
-        "http://127.0.0.1:8000/api/evaluate/",
+        "https://shark-app-jifss.ondigitalocean.app/api/evaluate/",
         {
           type: evalType,
           content: evalContent,

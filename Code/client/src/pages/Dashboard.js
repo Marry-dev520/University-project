@@ -44,7 +44,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.patch(
-        "http://127.0.0.1:8000/api/update-profile/",
+        "https://shark-app-jifss.ondigitalocean.app/api/update-profile/",
         profileData,
         { headers: { Authorization: `Token ${token}` } },
       );
@@ -68,7 +68,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.post(
-        "http://127.0.0.1:8000/api/change-password/",
+        "https://shark-app-jifss.ondigitalocean.app/api/change-password/",
         {
           old_password: passwordData.oldPassword,
           new_password: passwordData.newPassword,

@@ -28,7 +28,7 @@ const Chatbot = ({ isOpen, onClose }) => {
     try {
       const token = localStorage.getItem("token");
       const res = await axios.post(
-        "http://127.0.0.1:8000/api/chat/",
+        "https://shark-app-jifss.ondigitalocean.app/api/chat/",
         { message: userMsg.text },
         { headers: { Authorization: `Token ${token}` } },
       );

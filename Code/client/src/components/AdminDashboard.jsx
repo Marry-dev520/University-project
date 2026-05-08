@@ -13,7 +13,7 @@ const AdminDashboard = () => {
       try {
         const token = localStorage.getItem("token");
         const res = await axios.get(
-          "http://127.0.0.1:8000/api/admin/dashboard/",
+          "https://shark-app-jifss.ondigitalocean.app/api/admin/dashboard/",
           {
             headers: { Authorization: `Token ${token}` },
           },
@@ -38,7 +38,7 @@ const AdminDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.patch(
-        `http://127.0.0.1:8000/api/admin/users/${userId}/`,
+        `https://shark-app-jifss.ondigitalocean.app/api/admin/users/${userId}/`,
         { role: newRole },
         { headers: { Authorization: `Token ${token}` } },
       );
@@ -68,9 +68,12 @@ const AdminDashboard = () => {
 
     try {
       const token = localStorage.getItem("token");
-      await axios.delete(`http://127.0.0.1:8000/api/admin/users/${userId}/`, {
-        headers: { Authorization: `Token ${token}` },
-      });
+      await axios.delete(
+        `https://shark-app-jifss.ondigitalocean.app/api/admin/users/${userId}/`,
+        {
+          headers: { Authorization: `Token ${token}` },
+        },
+      );
 
       // Update local UI state
       setData((prev) => ({
@@ -95,7 +98,7 @@ const AdminDashboard = () => {
     try {
       const token = localStorage.getItem("token");
       await axios.delete(
-        `http://127.0.0.1:8000/api/admin/projects/${projectId}/`,
+        `https://shark-app-jifss.ondigitalocean.app/api/admin/projects/${projectId}/`,
         {
           headers: { Authorization: `Token ${token}` },
         },
