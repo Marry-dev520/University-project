@@ -98,8 +98,7 @@ DATABASES = {
         'ENGINE': 'django_mongodb_backend',
         'NAME': 'admin',
         'CLIENT': {
-            # This pulls the MONGO_URI from your .env file
-            'host': os.environ.get('MONGO_URI')
+            'host':"mongodb+srv://doadmin:O106d72rPiM34Q5G@db-mongodb-nyc1-46949-c90e4784.mongo.ondigitalocean.com/admin?tls=true&authSource=admin&replicaSet=db-mongodb-nyc1-46949"
         }
     }
 }
