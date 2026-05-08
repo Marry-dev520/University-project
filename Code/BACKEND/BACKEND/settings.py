@@ -96,7 +96,7 @@ WSGI_APPLICATION = 'BACKEND.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django_mongodb_backend',
-        'NAME': 'Final-testing',
+        'NAME': 'admin',
         'CLIENT': {
             # This pulls the MONGO_URI from your .env file
             'host': os.environ.get('MONGO_URI')
