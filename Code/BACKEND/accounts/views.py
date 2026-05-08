@@ -11,7 +11,8 @@ from .serializers import UserSerializer
 import random
 import os
 from dotenv import load_dotenv
-import google.generativeai as genai
+# import google.generativeai as genai
+from google import genai
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from textblob import TextBlob
@@ -23,6 +24,8 @@ from django.http import HttpResponse
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter, landscape
 from reportlab.lib import colors
+from google.genai import types
+
 
 # 1. Register API
 @api_view(['POST'])
@@ -361,10 +364,9 @@ def submit_feedback_api(request):
  # /// CHATBOT API using Gemini 1.5 Flash ///
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
-if api_key:
-    genai.configure(api_key=api_key)
-else:
-    print("🚨 ERROR: GEMINI_API_KEY is missing! Check your .env file.")
+
+if not api_key:
+    print("🚨 ERROR: GEMINI_API_KEY is missing! Check your .env file or DigitalOcean settings.")
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -377,6 +379,7 @@ def chatbot_api(request):
     if not api_key:
         return Response({"error": "API key not configured on server"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    # Cleaned up system instruction (no need to manually append "User's message:" anymore)
     system_instruction = """
     You are an expert career counselor and freelancing mentor for DigiSkills students. 
     Your goal is to provide helpful, encouraging, and accurate advice.
@@ -384,40 +387,20 @@ def chatbot_api(request):
     content writing, resume building, and career growth. 
     If the user asks about unrelated topics (like cooking, sports, or politics), 
     politely decline and guide them back to career topics.
-    
-    User's message: 
     """
 
     try:
-        # 1. Ask Google what models your specific API key has access to
-        available_models = []
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                available_models.append(m.name)
-        
-        # Print the list to your terminal for debugging!
-        print(f"Models available to your API key: {available_models}")
-        
-        if not available_models:
-             print("🚨 ERROR: Your API key does not have access to any text models!")
-             return Response({"error": "AI models unavailable."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # 2. Initialize the client (New SDK syntax)
+        client = genai.Client(api_key=api_key)
 
-        # 2. Automatically pick the best available model (Prefers 'flash', then whatever is first)
-        selected_model_name = available_models[0] # Default fallback
-        for name in available_models:
-            if 'flash' in name:
-                selected_model_name = name
-                break
-
-        # Remove 'models/' prefix so the library doesn't crash
-        clean_model_name = selected_model_name.replace('models/', '')
-        print(f"✅ Successfully loaded model: {clean_model_name}")
-
-        # 3. Generate the actual chat response
-        model = genai.GenerativeModel(clean_model_name)
-        full_prompt = system_instruction + user_message
-        
-        response = model.generate_content(full_prompt)
+        # 3. Generate content using the proper config for system instructions
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=user_message,
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+            )
+        )
         
         return Response({"reply": response.text}, status=status.HTTP_200_OK)
         
