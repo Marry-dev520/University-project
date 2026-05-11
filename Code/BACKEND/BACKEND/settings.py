@@ -21,11 +21,9 @@ SECRET_KEY = os.environ.get(
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
 # Allow specific hosts
-ALLOWED_HOSTS = [
-    'shark-app-jifss.ondigitalocean.app',
-    'localhost',
-    '127.0.0.1'
-]
+ALLOWED_HOSTS = ['*']
+CORS_ORIGIN_ALLOW_ALL = True
+CSRF_TRUSTED_ORIGINS = ["https://university-project-xi-weld.vercel.app"]
 
 # Application definition
 INSTALLED_APPS = [
