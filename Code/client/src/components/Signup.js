@@ -44,17 +44,18 @@ const Signup = () => {
         navigate("/login");
       }
     } catch (err) {
-      console.error("Backend Error Details:", err.response?.data);
+      console.error("Backend Error Details:", err);
 
-      // 2. Better error handling to catch Django REST Framework specific validation errors
       if (err.response?.data && typeof err.response.data === "object") {
-        // Grab the first error message from the Django response object
+        // Handle Django DRF validation errors (400 Bad Request)
         const firstErrorKey = Object.keys(err.response.data)[0];
         const firstErrorMessage = err.response.data[firstErrorKey];
-
-        // Format it nicely (e.g., "username: A user with that username already exists.")
         setError(`${firstErrorKey}: ${firstErrorMessage}`);
+      } else if (err.request) {
+        // The request was made but no response was received (504 Timeout or CORS)
+        setError("Network error: Could not connect to the server.");
       } else {
+        // Something else went wrong
         setError("Something went wrong. Please try again.");
       }
     } finally {
