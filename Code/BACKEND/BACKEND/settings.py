@@ -56,27 +56,6 @@ REST_FRAMEWORK = {
     ],
 }
 
-# --- CORS & CSRF Settings ---
-
-# Allow cookies to be sent cross-origin
-CORS_ALLOW_CREDENTIALS = True
-
-CORS_ALLOWED_ORIGINS = [
-    "https://university-project-xi-weld.vercel.app", 
-    "http://localhost:3000",
-    "http://192.168.0.104:3000",
-]
-
-# Trust the frontend for CSRF tokens
-CSRF_TRUSTED_ORIGINS = [
-    "https://university-project-xi-weld.vercel.app", 
-    "https://shark-app-jifss.ondigitalocean.app",
-    "http://localhost:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:3000",
-]
-
 # Optional but helpful for local development with sessions:
 SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
