@@ -109,15 +109,26 @@ WSGI_APPLICATION = 'BACKEND.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django_mongodb_backend',
-        'NAME': 'admin',
+        'NAME': 'Final-testing',
         'CLIENT': {
             'host': os.environ.get('MONGO_URI')
         }
     }
 }
 
+
 DEFAULT_AUTO_FIELD = 'django_mongodb_backend.fields.ObjectIdAutoField'
 SILENCED_SYSTEM_CHECKS = ["mongodb.E001"]
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django_mongodb_backend',
+#         'NAME': 'Final-testing',
+#         'CLIENT': {
+#             'host': 'mongodb+srv://doadmin:q4Y5a673F1rWD9B0@University-998e6519.mongo.ondigitalocean.com/Final-testing?authSource=admin&tls=true',
+#         },
+#     }
+# }
 
 AUTH_PASSWORD_VALIDATORS = [
     {
